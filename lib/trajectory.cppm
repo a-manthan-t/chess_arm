@@ -1,16 +1,10 @@
 module;
 
-#ifdef TESTING
-#include "doctest.h"
-#endif
+
 
 export module trajectory;
 
 export namespace trajectory {
-    struct
+    struct Path {
+    };
 }
-
-#ifdef TESTING
-TEST_SUITE("Trajectory Planning Tests") {
-}
-#endif

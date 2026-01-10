@@ -9,9 +9,9 @@ endif (TESTING)
 
 add_executable( chess_arm
         src/main.cpp
-        lib/quaternion.cppm
-        lib/arm.cppm
-        lib/trajectory.cppm
+        src/quaternion.cpp
+        src/arm.cpp
+        src/trajectory.cpp
 )
 
 target_sources( chess_arm
