@@ -10,18 +10,28 @@ export namespace quaternion {
     struct Quaternion {
         float w, x, y, z;
 
-        constexpr Quaternion(float w, float x, float y, float z) : w { w }, x { x }, y { y }, z { z } {}
+        // Prefer using the `vector` and `rotation` functions instead to ensure w = 0
+        // or magnitude = 1 for other functions.
+        constexpr Quaternion(float w, float x, float y, float z) : w(w), x(x), y(y), z(z) {}
 
         Quaternion inverse() const;
+        Quaternion sign() const;
         float magnitudeSquared() const;
         float magnitude() const;
 
         std::string show() const;
         Quaternion toEuler(bool degrees) const;
     };
+    
+    struct Orientation {
+        Quaternion position, rotation;
+
+        constexpr Orientation(Quaternion position, Quaternion rotation) : position(position), rotation(rotation) {}
+    };
 
     constexpr Quaternion ZERO { 0, 0, 0, 0 };
     constexpr Quaternion IDENTITY { 1, 0, 0, 0 };
+    constexpr Orientation ORIGIN { ZERO, IDENTITY };
 
     bool operator==(Quaternion q, Quaternion r);
     Quaternion operator+(Quaternion q, Quaternion r);

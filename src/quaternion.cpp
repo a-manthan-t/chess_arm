@@ -20,8 +20,14 @@ namespace quaternion {
         return { w, -x, -y, -z };
     }
 
+    // Assumes it is called on a vector.
+    Quaternion Quaternion::sign() const {
+        auto sign = [](float v) -> float { return v > 0 ? (v < 0 ? -1.f : 0) : 1; };
+        return { 0, sign(x), sign(y), sign(z) };
+    }
+
     float Quaternion::magnitudeSquared() const {
-        return std::powf(w, 2) + std::powf(x, 2) + std::powf(y, 2) + std::powf(z, 2);
+        return w * w + x * x + y * y + z * z;
     }
 
     float Quaternion::magnitude() const {
@@ -62,21 +68,18 @@ namespace quaternion {
 
     // Checks for equality of the q and r with their components rounded to 5 d.p.
     bool operator==(Quaternion q, Quaternion r) {
-        auto r5 = [](float v) -> int { return static_cast<int>(v * std::pow(10, 5)); };
+        auto r5 = [](float v) -> int { return static_cast<int>(v * 0.000'01); };
         return r5(q.w) == r5(r.w) && r5(q.x) == r5(r.x) && r5(q.y) == r5(r.y) && r5(q.z) == r5(r.z);
     }
 
-    // Assumes the quaternions are vectors.
     Quaternion operator+(Quaternion q, Quaternion r) {
-        return { 0, q.x + r.x, q.y + r.y, q.z + r.z };
+        return { q.w + r.w, q.x + r.x, q.y + r.y, q.z + r.z };
     }
 
-    // Assumes the quaternions are vectors.
     Quaternion operator-(Quaternion q, Quaternion r) {
-        return { 0, q.x - r.x, q.y - r.y, q.z - r.z };
+        return { q.w - r.w, q.x - r.x, q.y - r.y, q.z - r.z };
     }
 
-    // Assumes q and r are unit quaternions.
     Quaternion operator*(Quaternion q, Quaternion r) {
         return {
             q.w * r.w - q.x * r.x - q.y * r.y - q.z * r.z,
@@ -86,14 +89,12 @@ namespace quaternion {
         };
     }
 
-    // Assumes q is a vector.
     Quaternion operator*(Quaternion q, float x) {
-        return { 0, q.x * x, q.y * x, q.z * x };
+        return { q.w * x, q.x * x, q.y * x, q.z * x };
     }
 
-    // Assumes q is a vector.
     Quaternion operator/(Quaternion q, float x) {
-        return { 0, q.x / x, q.y / x, q.z / x };
+        return { q.w / x, q.x / x, q.y / x, q.z / x };
     }
 
     float dot(Quaternion q, Quaternion r) {
@@ -149,7 +150,7 @@ namespace quaternion {
 TEST_SUITE("Quaternion Tests") {
     using namespace quaternion;
     using std::numbers::pi;
-    float epsilon { std::powf(10, -4) };
+    float epsilon { 0.000'1 };
 
     Quaternion
         q { rotation(Axis::X, pi/2) },

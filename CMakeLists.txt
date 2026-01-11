@@ -11,7 +11,7 @@ add_executable( chess_arm
         src/main.cpp
         src/quaternion.cpp
         src/arm.cpp
-        src/trajectory.cpp
+        src/path.cpp
 )
 
 target_sources( chess_arm
@@ -19,5 +19,5 @@ target_sources( chess_arm
         FILE_SET modules TYPE CXX_MODULES FILES
         lib/quaternion.cppm
         lib/arm.cppm
-        lib/trajectory.cppm
+        lib/path.cppm
 )

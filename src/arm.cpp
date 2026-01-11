@@ -1,9 +1,9 @@
 module;
 
-#include <algorithm>
-#include <array>
-#include <format>
+#include <cmath>
+#include <limits>
 #include <numbers>
+#include <ranges>
 
 #ifdef TESTING
 #include "../lib/doctest.h"
@@ -13,7 +13,91 @@ module;
 module arm;
 
 import quaternion;
+import path;
 
+namespace arm {
+    // Retrieve the angle of every joint for dispatch to the arm's microcontroller.
+    std::vector<float> Arm::collectAngles() const {
+        std::vector<float> result(joints.size());
+
+        for (int i {}; const Joint& joint : joints) {
+            result[i++] = joint.angle;
+        }
+
+        return result;
+    }
+
+    /* Forward kinematics. */
+
+    // Find the global orientation of the end effector.
+    Orientation Arm::locateEndEffector() const {
+        Orientation result { ORIGIN };
+
+        for (const Joint& joint : joints | std::views::reverse) {
+            Quaternion jointRotation { rotation(joint.rotAxis, joint.angle) };
+            result = {
+                apply(jointRotation, joint.armSegment + result.position),
+                result.rotation = jointRotation * result.rotation
+            };
+        }
+
+        return {
+            apply(base.rotation, base.position + result.position),
+            result.rotation = base.rotation * result.rotation
+        };
+    }
+
+    /* Inverse kinematics. */
+
+    // The error in position should be allowed to dominate - the rotation error will be adjusted separately
+    // if a wrist is provided.
+    float Arm::errorTo(const Orientation& target) const {
+        auto [position, rotation] { locateEndEffector() };
+
+        return (position - target.position).magnitude() / position.magnitude()
+             + std::acosf(dot(rotation, target.rotation)) / std::numbers::pi_v<float>;
+    }
+
+    // Use CCD to set the arm's angles to those which bring the end effector as close as possible to the
+    // target orientation (local minimum). The wrist is adjusted separately from the rest of the arm.
+    void Arm::ccdTo(const Orientation& target, float granularity = DEFAULT_GRANULARITY) {
+        auto adjust = [this, target, granularity](auto joints) mutable {
+            float lastError { std::numeric_limits<float>::infinity() };
+
+            for (int i {}; i < 1'000'000; ++i) { // To avoid an infinite loop with while (true)
+                for (Joint& joint : joints) {
+                    float error { errorTo(target) };
+                    joint.angle += granularity;
+
+                    if (errorTo(target) > error) {
+                        joint.angle -= 2 * granularity;
+                    }
+                }
+
+                // Stop if function has converged (i.e., consecutive errors are withing 10^-6 of each other -
+                // this is used instead of the conventional proximity to the target.
+                if (float error { errorTo(target) }; lastError - error < 0.000'001) {
+                    break;
+                } else {
+                    lastError = error;
+                }
+            }
+        };
+
+        adjust(joints | std::views::take(joints.size() - wrist_size));
+        adjust(joints | std::views::drop(joints.size() - wrist_size));
+    }
+
+    /* Path following. */
+
+    void Arm::follow(const path::Path& path) {
+
+    }
+
+    void Arm::follow(const std::vector<path::Path>& path) {
+
+    }
+}
 
 #ifdef TESTING
 TEST_SUITE("Arm Tests") {
@@ -24,7 +108,7 @@ TEST_SUITE("Arm Tests") {
     using namespace arm;
     using std::numbers::pi;
 
-    std::array joints {
+    std::vector joints {
         Joint { Axis::Z, 1, Axis::Z },
         Joint { Axis::Z, 3, Axis::Y },
         Joint { Axis::Y, 1, Axis::X },
@@ -40,10 +124,12 @@ TEST_SUITE("Arm Tests") {
     Orientation target2 { vector(2, 3, 4), rotation(0, pi/9, pi/2.5) };
     Orientation target3 { vector(3, -2, 1), rotation(pi/8, pi/5, pi/7) };
 
-    Arm<9, 3> arm { joints };
+    Arm arm { joints, 3 };
 
     TEST_CASE("Collect angles") {
-        CHECK(arm.collectAngles() == std::array<float, 9> {});
+        for (float angle : arm.collectAngles()) {
+            CHECK(angle == 0);
+        }
     }
 
     TEST_CASE("Forward kinematics") {
