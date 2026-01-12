@@ -1,6 +1,7 @@
 module;
 
 #include <cmath>
+#include <memory>
 #include <numbers>
 
 #ifdef TESTING
@@ -48,7 +49,7 @@ namespace path {
         }
     }
 
-    CubicBezier::CubicBezier(Orientation start, Orientation target, float startSpeed, float endSpeed)
+    CubicBezier::CubicBezier(const Orientation& start, const Orientation& target, float startSpeed, float endSpeed)
         : Path(start.position, target.position, startSpeed, endSpeed) {
         float distance = (target.position - start.position).magnitude() / 3;
 
@@ -77,8 +78,24 @@ namespace path {
              + target * tt * t;
     }
 
+    std::vector<std::unique_ptr<Path>> autoPath(const std::vector<Checkpoint>& checkpoints) {
+        std::vector<std::unique_ptr<Path>> paths;
+        paths.reserve(checkpoints.size() - 1);
+
+        for (int i {}; i < checkpoints.size() - 1; ++i) {
+            paths.push_back(std::make_unique<CubicBezier>(
+                checkpoints[i].orientation,
+                checkpoints[i + 1].orientation,
+                checkpoints[i].speed,
+                checkpoints[i + 1].speed
+            ));
+        }
+
+        return paths;
+    }
+
     // To interpolate the rotation of the end effector.
-    Quaternion slerp(const Quaternion& startRotation, const Quaternion& targetRotation, float t) {
+    Quaternion slerp(Quaternion startRotation, Quaternion targetRotation, float t) {
         float dotProduct { dot(startRotation, targetRotation) };
 
         if (dotProduct < -0.999 || dotProduct > 0.999) {
@@ -107,11 +124,11 @@ namespace path {
         return result;
     }
 
-    float mergedLength(const std::vector<Path>& paths) {
+    float mergedLength(const std::vector<std::unique_ptr<Path>>& paths) {
         float result {};
 
-        for (const Path& path : paths) {
-            result += path.length();
+        for (const std::unique_ptr<Path>& path : paths) {
+            result += path->length();
         }
 
         return result;
@@ -120,5 +137,19 @@ namespace path {
 
 #ifdef TESTING
 TEST_SUITE("Path Planning Tests") {
+    using namespace path;
+    float epsilon { 0.000'1 };
+
+    std::vector paths {
+        autoPath(std::vector<Checkpoint> {
+            { ORIGIN, 0 },
+            {{ vector(3, 4, 0), ZERO }, 0 },
+            {{ vector(3, 4, 4), ZERO}, 0 }
+        })
+    };
+
+    TEST_CASE("??") {
+        CHECK(doctest::Approx(mergedLength(paths)).epsilon(epsilon) == 9.46603);
+    }
 }
 #endif

@@ -1,5 +1,6 @@
 module;
 
+#include <memory>
 #include <vector>
 
 export module arm;
@@ -9,6 +10,7 @@ import path;
 
 export namespace arm {
     using namespace quaternion;
+    using namespace path;
 
     struct Joint {
         const Quaternion armSegment; // The position vector to the arm segment tip from the local origin when angle == 0.
@@ -36,7 +38,7 @@ export namespace arm {
             float errorTo(const Orientation& target) const;
             void ccdTo(const Orientation& target, float granularity);
 
-            void follow(const path::Path& path); // const???
-            void follow(const std::vector<path::Path>& path);
+            void follow(const Path& path);
+            void follow(const std::vector<std::unique_ptr<Path>>& path);
     };
 }

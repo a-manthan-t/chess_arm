@@ -2,6 +2,7 @@ module;
 
 #include <cmath>
 #include <limits>
+#include <memory>
 #include <numbers>
 #include <ranges>
 
@@ -16,6 +17,9 @@ import quaternion;
 import path;
 
 namespace arm {
+    using namespace quaternion;
+    using namespace path;
+
     // Retrieve the angle of every joint for dispatch to the arm's microcontroller.
     std::vector<float> Arm::collectAngles() const {
         std::vector<float> result(joints.size());
@@ -90,11 +94,11 @@ namespace arm {
 
     /* Path following. */
 
-    void Arm::follow(const path::Path& path) {
+    void Arm::follow(const Path& path) {
 
     }
 
-    void Arm::follow(const std::vector<path::Path>& path) {
+    void Arm::follow(const std::vector<std::unique_ptr<Path>>& path) {
 
     }
 }

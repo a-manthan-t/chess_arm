@@ -1,5 +1,6 @@
 module;
 
+#include <memory>
 #include <vector>
 
 export module path;
@@ -9,6 +10,13 @@ import quaternion;
 export namespace path {
     using namespace quaternion;
 
+    struct Checkpoint {
+        Orientation orientation;
+        float speed;
+
+        Checkpoint(const Orientation &orientation, float speed) : orientation(orientation), speed(speed) {}
+    };
+
     struct Path {
         Quaternion start, target;
         float startSpeed, endSpeed;
@@ -16,21 +24,22 @@ export namespace path {
         Path(Quaternion start, Quaternion target, float startSpeed, float endSpeed)
             : start(start), target(target), startSpeed(startSpeed), endSpeed(endSpeed) {}
 
-        virtual Quaternion operator()(float t) const = 0;
         virtual ~Path() = default;
 
+        virtual Quaternion operator()(float t) const = 0;
         float length(int segments) const;
     };
 
-    float mergedLength(const std::vector<Path>& paths);
-    Quaternion slerp(const Quaternion& startRotation, const Quaternion& targetRotation, float t);
+    std::vector<std::unique_ptr<Path>> autoPath(const std::vector<Checkpoint>& checkpoints);
+    Quaternion slerp(Quaternion startRotation, Quaternion targetRotation, float t);
+    float mergedLength(const std::vector<std::unique_ptr<Path>>& paths);
 
-    class Line : Path {
+    struct Line : Path {
         Line(Quaternion start, Quaternion target, float startSpeed, float endSpeed);
         Quaternion operator()(float t) const override;
     };
 
-    class Circle : Path {
+    struct Circle : Path {
         Quaternion centre { ZERO }, u { ZERO }, v { ZERO };
         float alpha {}, radius {};
         bool useLine {};
@@ -39,20 +48,10 @@ export namespace path {
         Quaternion operator()(float t) const override;
     };
 
-    class CubicBezier : Path {
+    struct CubicBezier : Path {
         Quaternion control1 { ZERO }, control2 { ZERO };
 
-        public:
-            CubicBezier(Orientation start, Orientation target, float startSpeed, float endSpeed);
-            Quaternion operator()(float t) const override;
+        CubicBezier(const Orientation& start, const Orientation& target, float startSpeed, float endSpeed);
+        Quaternion operator()(float t) const override;
     };
-
-    struct Checkpoint {
-        Orientation orientation;
-        float speed;
-
-        Checkpoint(Orientation orientation, float speed) : orientation(orientation), speed(speed) {}
-    };
-
-    std::vector<Path> autoPath(std::vector<Checkpoint>& checkpoints);
 }

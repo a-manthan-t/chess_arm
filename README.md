@@ -2,7 +2,6 @@
 
 TODO:
 - consider max and min angles for servos
-- autopath
 - follow path
 - path tests
 - joint loading from files
