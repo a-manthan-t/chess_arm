@@ -1,14 +1,12 @@
 module;
 
 #include <cmath>
-#include <memory>
-#include <numbers>
 
 #ifdef TESTING
 #include "../lib/doctest.h"
 #endif
 
-// Handles calculation of targets at different fractions along a path.
+// Handles calculation of targets at different fractions along a cubic bezier path.
 module path;
 
 import quaternion;
@@ -16,140 +14,79 @@ import quaternion;
 namespace path {
     using namespace quaternion;
 
-    /* Constructors */
+    // Where segments is the number of segments the path should be broken into
+    // for calculating its length.
+    Path::Path(const Checkpoint& start, const Checkpoint& target, unsigned int segments)
+        : start(start), target(target) {
+        float distance = (target.orientation.position - start.orientation.position).magnitude() / 3;
 
-    Line::Line(Quaternion start, Quaternion target, float startSpeed, float endSpeed)
-        : Path(start, target, startSpeed, endSpeed) {}
+        control1 = start.orientation.position + start.orientation.rotation * distance;
+        control1.w = 0; // Since the rotation will have some w, which we don't want in the control vector.
+        control2 = target.orientation.position - target.orientation.rotation * distance;
+        control2.w = 0;
 
-    Circle::Circle(Quaternion start, Quaternion target, Quaternion passThrough, float startSpeed, float endSpeed)
-        : Path(start, target, startSpeed, endSpeed) {
-        Quaternion
-            p0p1 { start - passThrough },
-            p1p2 { passThrough - target },
-            p2p0 { target - start } ,
-            normal { cross(p0p1, p1p2) };
+        Quaternion previous { start.orientation.position };
 
-        if (float normalMag { normal.magnitude() }; normalMag < 0.000'1) {
-            useLine = true;
-        } else {
-            centre = start + cross(p2p0 * p0p1.magnitudeSquared() + p0p1 * p2p0.magnitudeSquared(), normal)
-                / (2 * normal.magnitudeSquared());
-
-            Quaternion
-                cp0 { start - centre },
-                cp2 { target - centre };
-
-            float sign = cross(cp0, cp2).sign() + normal.sign() == ZERO ? -1.f : 1.f;
-
-            radius = std::sqrtf(p0p1.magnitudeSquared() * p1p2.magnitudeSquared() * p2p0.magnitudeSquared()) / (2 * normalMag);
-            alpha = sign * -std::acosf(dot(cp0, cp2) / std::sqrtf(cp0.magnitudeSquared() * cp2.magnitudeSquared()))
-                    + (sign == 1.f ? 0.f : -2 * std::numbers::pi_v<float>); // Angle to end at
-            u = cp0 / radius;                                               // Normalised vector from centre to start
-            v = cross(u, normal / normalMag);                          // Perpendicular vector to u in plane of circle
-        }
-    }
-
-    CubicBezier::CubicBezier(const Orientation& start, const Orientation& target, float startSpeed, float endSpeed)
-        : Path(start.position, target.position, startSpeed, endSpeed) {
-        float distance = (target.position - start.position).magnitude() / 3;
-
-        // The w component will get discarded, which is fine.
-        control1 = start.position + start.rotation * distance;
-        control2 = target.position - target.rotation * distance;
-    }
-
-    /* Path calculators */
-
-    Quaternion Line::operator()(float t) const {
-        return start * (1 - t) + target * t;
-    }
-
-    Quaternion Circle::operator()(float t) const {
-        return useLine ? start * (1 - t) + target * t
-                       : centre + (u * std::cosf(alpha * t) + v * std::sinf(alpha * t)) * radius;
-    }
-
-    Quaternion CubicBezier::operator()(float t) const {
-        float tt { t * t }, tm1tm1 { (t - 1) * (t - 1) }; // To avoid using pow.
-
-        return start * tm1tm1 * (1 - t)
-             + control1 * (3 * tm1tm1 * t)
-             + control2 * (3 * tt * (1 - t))
-             + target * tt * t;
-    }
-
-    std::vector<std::unique_ptr<Path>> autoPath(const std::vector<Checkpoint>& checkpoints) {
-        std::vector<std::unique_ptr<Path>> paths;
-        paths.reserve(checkpoints.size() - 1);
-
-        for (int i {}; i < checkpoints.size() - 1; ++i) {
-            paths.push_back(std::make_unique<CubicBezier>(
-                checkpoints[i].orientation,
-                checkpoints[i + 1].orientation,
-                checkpoints[i].speed,
-                checkpoints[i + 1].speed
-            ));
-        }
-
-        return paths;
-    }
-
-    // To interpolate the rotation of the end effector.
-    Quaternion slerp(Quaternion startRotation, Quaternion targetRotation, float t) {
-        float dotProduct { dot(startRotation, targetRotation) };
-
-        if (dotProduct < -0.999 || dotProduct > 0.999) {
-            return startRotation * (1 - t) + targetRotation * t;
-        }
-
-        float angle { std::acosf(dotProduct) }, sinAngle { std::sinf(angle) };
-        return startRotation * (std::sinf(angle * (1 - t)) / sinAngle)
-             + targetRotation * (std::sinf(angle * t) / sinAngle);
-    }
-
-    /* Speed control functions. */
-
-    // Calculate a path's length by splitting it into a number of straight
-    // line segments and adding their lengths.
-    float Path::length(int segments = 1000) const {
-        float result {};
-        Quaternion previous { start };
-
-        for (int i = 1; i <= segments; ++i) {
-            Quaternion temp = (*this)(static_cast<float>(i) / static_cast<float>(segments));
-            result += (temp - previous).magnitude();
+        for (int i { 1 }; i <= segments; ++i) {
+            Quaternion temp { (*this)(static_cast<float>(i) / static_cast<float>(segments)).position };
+            length += (temp - previous).magnitude();
             previous = temp;
         }
 
-        return result;
+        // scaled path length = (v + w)/2 due to symmetry, *1000 for s -> ms
+        duration = 2'000 * length / (start.speed + target.speed);
     }
 
-    float mergedLength(const std::vector<std::unique_ptr<Path>>& paths) {
-        float result {};
+    // Calculate the new orientation of the robot a fraction t along its path duration.
+    Orientation Path::operator()(float t) const {
+        // Please see the bottom of this file (before the tests) for an explanation of this lambda.
+        float pt = [this](float t) -> float { // Fraction travelled along path.
+            float ttt = t * t * t; // To avoid pow.
+            return 2.f * (start.speed * t + (target.speed - start.speed) * (ttt - 0.5f * ttt * t))
+                 / (start.speed + target.speed);
+        }(t);
 
-        for (const std::unique_ptr<Path>& path : paths) {
-            result += path->length();
+        float ptt { pt * pt }, ptm1tm1 { (pt - 1) * (pt - 1) }; // To avoid using pow.
+        Quaternion newPosition {
+            start.orientation.position * ptm1tm1 * (1 - pt)
+            + control1 * (3 * ptm1tm1 * pt)
+            + control2 * (3 * ptt * (1 - pt))
+            + target.orientation.position * ptt * pt
+        };
+
+        float dotProduct { dot(start.orientation.rotation, target.orientation.rotation) };
+        if (dotProduct < -0.999 || dotProduct > 0.999) {
+            // Linear interpolation due to instability as denominator in formula below `if` statement approaches 0.
+            return { newPosition, start.orientation.rotation * (1 - pt) + target.orientation.rotation * pt };
         }
 
-        return result;
+        float angle { std::acosf(dotProduct) }, sinAngle { std::sinf(angle) };
+        Quaternion newRotation { // Calculated using SLERP formula.
+            start.orientation.rotation * (std::sinf(angle * (1 - pt)) / sinAngle)
+            + target.orientation.rotation * (std::sinf(angle * pt) / sinAngle)
+        };
+
+        return { newPosition, newRotation };
     }
 }
 
+/*
+ *
+ * Explanation of the lambda:
+ *
+ * We need to calculate the fraction of the path travelled pt, given t - the fraction of the path's duration that has
+ * elapsed - and start and end speeds between which we assume a cubic speed profile. At time x:
+ *
+ * speed = v + (3x^2 - 2x^3)(w - v)       simplified from the cubic bezier formula with v and w as control points.
+ * distance = int_0^t (speed) dx = [vx + (x^3-0.5x^4)(w-v)]_0^t
+ *                               = vt + (w-v)(t^3-0.5t^4)
+ * This needs to be scaled according to the speeds: when t = 1 (full path travelled), distance = (v + w) / 2,
+ * which is used as the denominator here.
+ *
+ */
+
 #ifdef TESTING
 TEST_SUITE("Path Planning Tests") {
-    using namespace path;
-    float epsilon { 0.000'1 };
 
-    std::vector paths {
-        autoPath(std::vector<Checkpoint> {
-            { ORIGIN, 0 },
-            {{ vector(3, 4, 0), ZERO }, 0 },
-            {{ vector(3, 4, 4), ZERO}, 0 }
-        })
-    };
-
-    TEST_CASE("??") {
-        CHECK(doctest::Approx(mergedLength(paths)).epsilon(epsilon) == 9.46603);
-    }
 }
 #endif

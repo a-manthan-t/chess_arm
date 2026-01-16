@@ -1,6 +1,8 @@
 module;
 
-#include <memory>
+#include <atomic>
+#include <deque>
+#include <mutex>
 #include <vector>
 
 export module arm;
@@ -21,24 +23,34 @@ export namespace arm {
     };
 
     class Arm {
+        enum class PathFlag { Stopped, Halt, Moving };
+
         std::vector<Joint> joints;
-        size_t wrist_size;
+        size_t wristSize;
+        unsigned int delay_ms;
+        float granularity;
         Orientation base;
 
+        std::mutex m;
+        std::condition_variable cv;
+        std::atomic<PathFlag> pathFlag { PathFlag::Stopped };
+        std::deque<Checkpoint> checkpoints;
+
+        void dispatchAngles() const;
+        Path createPath();
+
         public:
-            static constexpr float DEFAULT_GRANULARITY { 0.001 };
-
             // Ensure wrist_size <= joints.size()!
-            Arm(std::vector<Joint> joints, size_t wrist_size, Orientation base = ORIGIN)
-                : joints(std::move(joints)), wrist_size(wrist_size), base(base) {}
-
-            std::vector<float> collectAngles() const;
+            Arm(std::vector<Joint> joints, size_t wristSize, unsigned int delay_ms = 5,
+                float granularity = 0.001, Orientation base = ORIGIN);
 
             Orientation locateEndEffector() const;
             float errorTo(const Orientation& target) const;
-            void ccdTo(const Orientation& target, float granularity);
+            void ccdTo(const Orientation& target);
 
-            void follow(const Path& path);
-            void follow(const std::vector<std::unique_ptr<Path>>& path);
+            void addCheckpoint(const Checkpoint& checkpoint, bool shouldResume);
+            void stop(const Orientation& safety, float currentSpeed, bool abort);
+            void resume();
+            [[noreturn]] void follow();
     };
 }
