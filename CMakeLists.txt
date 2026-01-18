@@ -5,6 +5,11 @@ set(CMAKE_CXX_STANDARD 23)
 
 if (TESTING)
     add_compile_definitions(TESTING)
+    add_compile_definitions(PIPELINE=0)
+else (TESTING)
+    add_compile_definitions("PIPELINE=\"libcamerasrc ! videoconvert ! \" \
+                                      \"video/x-raw,format=GRAY8,width=640,height=480 ! \" \
+                                      \"appsink sync=false drop=true max-buffers=1\"")
 endif (TESTING)
 
 add_executable(chess_arm
@@ -25,5 +30,5 @@ target_sources(chess_arm
 )
 
 find_package(OpenCV REQUIRED)
-target_link_libraries(chess_arm ${OpenCV_LIBS})
+target_link_libraries(chess_arm ${OpenCV_LIBRARIES})
 target_include_directories(chess_arm PRIVATE ${OpenCV_INCLUDE_DIRS})

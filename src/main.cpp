@@ -1,4 +1,5 @@
 #include <thread>
+#include <iostream>
 #include <opencv2/opencv.hpp>
 
 import quaternion;
@@ -11,18 +12,16 @@ using namespace quaternion;
 #include "../lib/doctest.h"
 #else
 int main() {
-    cv::VideoCapture cap(0);
+    // PIPELINE defined in CMakeLists.txt.
+    cv::VideoCapture cap { PIPELINE, cv::CAP_ANY };
 
     std::this_thread::sleep_for(std::chrono::seconds(2));
 
     cv::Mat img;
     cap >> img;
 
-    cv::Mat grey;
-    cv::cvtColor(img, grey, cv::COLOR_BGR2GRAY);
-
     cv::Mat thresh;
-    cv::threshold(grey, thresh, 128, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+    cv::threshold(img, thresh, 128, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
 
     std::vector<std::vector<cv::Point>> contours;
     std::vector<cv::Vec4i> hierarchy;

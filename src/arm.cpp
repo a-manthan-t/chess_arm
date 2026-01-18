@@ -7,6 +7,7 @@ module;
 #include <mutex>
 #include <numbers>
 #include <ranges>
+#include <vector>
 
 #ifdef TESTING
 #include "../lib/doctest.h"

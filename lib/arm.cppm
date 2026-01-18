@@ -1,6 +1,7 @@
 module;
 
 #include <atomic>
+#include <condition_variable>
 #include <deque>
 #include <mutex>
 #include <vector>
