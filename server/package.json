@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "express": "^5.2.1",
+    "https": "^1.0.0",
+    "uuid": "^13.0.0",
+    "ws": "^8.19.0"
+  },
+  "type": "module"
+}

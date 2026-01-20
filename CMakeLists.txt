@@ -18,6 +18,7 @@ add_executable(chess_arm
         src/path.cpp
         src/arm.cpp
         src/camera.cpp
+        src/easywsclient.cpp
 )
 
 target_sources(chess_arm

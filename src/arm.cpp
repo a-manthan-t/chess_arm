@@ -13,7 +13,7 @@ module;
 #include "../lib/doctest.h"
 #endif
 
-// Handles forward and inverse kinematics for serial kinematic chains made up of revolute joints.
+// Handles forward, inverse kinematics as well as path following for robot arms.
 module arm;
 
 import quaternion;

@@ -13,15 +13,18 @@ using namespace quaternion;
 #else
 int main() {
     // PIPELINE defined in CMakeLists.txt.
-    cv::VideoCapture cap { PIPELINE, cv::CAP_ANY };
+    cv::VideoCapture cap { 0, cv::CAP_ANY };
 
     std::this_thread::sleep_for(std::chrono::seconds(2));
 
     cv::Mat img;
     cap >> img;
 
+    cv::Mat grey;
+    cv::cvtColor(img, grey, cv::COLOR_BGR2GRAY);
+
     cv::Mat thresh;
-    cv::threshold(img, thresh, 128, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+    cv::threshold(grey, thresh, 128, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
 
     std::vector<std::vector<cv::Point>> contours;
     std::vector<cv::Vec4i> hierarchy;
@@ -48,7 +51,11 @@ int main() {
     cv::Mat output = img.clone();
     cv::drawContours(output, filteredContours, -1, cv::Scalar(0, 255, 0), 2);
 
-    cv::imwrite("image.jpg", output);
+    cv::cvtColor(img, grey, cv::COLOR_BGR2GRAY);
+
+    std::vector<unsigned char> buffer;
+    cv::imencode(".jpg", grey, buffer);
+    cv::imwrite("image.jpg", grey);
 
     return 0;
 }
