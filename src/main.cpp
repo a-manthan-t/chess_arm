@@ -1,11 +1,15 @@
 #include <thread>
 #include <iostream>
 #include <opencv2/opencv.hpp>
+#include "../lib/easywsclient.hpp"
 
 import quaternion;
 import arm;
+import streamer;
 
 using namespace quaternion;
+
+import camera;
 
 #ifdef TESTING
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -15,47 +19,46 @@ int main() {
     // PIPELINE defined in CMakeLists.txt.
     cv::VideoCapture cap { 0, cv::CAP_ANY };
 
-    std::this_thread::sleep_for(std::chrono::seconds(2));
+    std::thread t { streamer::stream, "ws://localhost:8008", "very-secure-password", 15 };
 
-    cv::Mat img;
-    cap >> img;
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-    cv::Mat grey;
-    cv::cvtColor(img, grey, cv::COLOR_BGR2GRAY);
+        cv::Mat img;
+        cap >> img;
 
-    cv::Mat thresh;
-    cv::threshold(grey, thresh, 128, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+        cv::Mat grey;
+        cv::cvtColor(img, grey, cv::COLOR_BGR2GRAY);
 
-    std::vector<std::vector<cv::Point>> contours;
-    std::vector<cv::Vec4i> hierarchy;
-    cv::findContours(
-        thresh,
-        contours,
-        hierarchy,
-        cv::RETR_TREE,
-        cv::CHAIN_APPROX_SIMPLE
-    );
+        cv::Mat thresh;
+        cv::threshold(grey, thresh, 128, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
 
-    std::cout << "Found " << contours.size() << " contours." << std::endl;
+        std::vector<std::vector<cv::Point>> contours;
+        std::vector<cv::Vec4i> hierarchy;
+        cv::findContours(
+            thresh,
+            contours,
+            hierarchy,
+            cv::RETR_TREE,
+            cv::CHAIN_APPROX_SIMPLE
+        );
 
-    std::vector<std::vector<cv::Point>> filteredContours;
-    for (const std::vector<cv::Point>& c : contours) {
-        double area = cv::contourArea(c);
-        if (area > 100) { // only keep contours larger than 100 pixels
-            filteredContours.push_back(c);
+        std::vector<std::vector<cv::Point>> filteredContours;
+        for (const std::vector<cv::Point>& c : contours) {
+            double area = cv::contourArea(c);
+            if (area > 100) { // only keep contours larger than 100 pixels
+                filteredContours.push_back(c);
+            }
         }
+
+        cv::Mat output = img.clone();
+        cv::drawContours(output, filteredContours, -1, cv::Scalar(0, 255, 0), 2);
+
+        camera::Camera::instance.capture();
+        camera::Camera::instance.encode();
     }
 
-    std::cout << "Filtered to " << filteredContours.size() << " contours." << std::endl;
-
-    cv::Mat output = img.clone();
-    cv::drawContours(output, filteredContours, -1, cv::Scalar(0, 255, 0), 2);
-
-    cv::cvtColor(img, grey, cv::COLOR_BGR2GRAY);
-
-    std::vector<unsigned char> buffer;
-    cv::imencode(".jpg", grey, buffer);
-    cv::imwrite("image.jpg", grey);
+    t.join();
 
     return 0;
 }

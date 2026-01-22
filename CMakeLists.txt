@@ -8,7 +8,7 @@ if (TESTING)
     add_compile_definitions(PIPELINE=0)
 else (TESTING)
     add_compile_definitions("PIPELINE=\"libcamerasrc ! videoconvert ! \" \
-                                      \"video/x-raw,format=GRAY8,width=640,height=480 ! \" \
+                                      \"video/x-raw,format=BGR888,width=640,height=480 ! \" \
                                       \"appsink sync=false drop=true max-buffers=1\"")
 endif (TESTING)
 
@@ -19,6 +19,7 @@ add_executable(chess_arm
         src/arm.cpp
         src/camera.cpp
         src/easywsclient.cpp
+        src/streamer.cpp
 )
 
 target_sources(chess_arm
@@ -28,6 +29,7 @@ target_sources(chess_arm
         lib/path.cppm
         lib/arm.cppm
         lib/camera.cppm
+        lib/streamer.cppm
 )
 
 find_package(OpenCV REQUIRED)

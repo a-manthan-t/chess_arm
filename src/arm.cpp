@@ -105,7 +105,7 @@ namespace arm {
 
     void Arm::addCheckpoint(const Checkpoint& checkpoint, bool shouldResume) {
         {
-            std::lock_guard lock { m };
+            std::lock_guard lock { armMutex };
             checkpoints.push_back(checkpoint);
         } // unlocks before resuming path follower.
 
@@ -118,7 +118,7 @@ namespace arm {
     // given. Note that an arm can be stopped again on its way to a safety orientation.
     void Arm::stop(const Orientation& safety, float currentSpeed, bool abort) {
         if (pathFlag.load() != PathFlag::Halt) {
-            std::lock_guard lock { m };
+            std::lock_guard lock { armMutex };
 
             if (abort) {
                 checkpoints.clear();
@@ -135,18 +135,18 @@ namespace arm {
 
     void Arm::resume() {
         pathFlag.store(PathFlag::Moving);
-        cv.notify_one();
+        flagCondition.notify_one();
     }
 
     Path Arm::createPath() {
-        std::unique_lock lock { m };
+        std::unique_lock lock { armMutex };
 
         // Stop if we run out of new checkpoints (first is current position) or have been made to stop.
         if (checkpoints.size() == 1 || pathFlag.load() == PathFlag::Stopped) {
             pathFlag.store(PathFlag::Stopped);
 
             // Block until we are given the go ahead.
-            cv.wait(lock, [&] -> bool { return pathFlag.load() == PathFlag::Moving; });
+            flagCondition.wait(lock, [&] -> bool { return pathFlag.load() == PathFlag::Moving; });
         }
 
         Checkpoint current { checkpoints.front() };
@@ -173,9 +173,9 @@ namespace arm {
                 dispatchAngles();
 
                 t = static_cast<float>(duration_cast<milliseconds>(high_resolution_clock::now() - startTime).count()) / path.duration;
-                std::unique_lock lock { m };
+                std::unique_lock lock { armMutex };
 
-                cv.wait_for(lock, milliseconds(delay_ms), [&] -> bool {
+                flagCondition.wait_for(lock, milliseconds(delay_ms), [&] -> bool {
                     // If we are told to halt, wake up and exit the while loop to go to the safety checkpoint.
                     if (pathFlag.load() == PathFlag::Halt) {
                         t = 1;

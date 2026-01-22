@@ -1,19 +1,24 @@
 module;
 
+#include <mutex>
+#include <vector>
+
 #include <opencv2/opencv.hpp>
 
 export module camera;
 
 export namespace camera {
     class Camera {
-        static bool initialised;
-        static float time;
-        static cv::VideoCapture camera; // We only want one camera.
-        static cv::Mat frame;
-
-        Camera();
+        cv::VideoCapture camera { 0, cv::CAP_ANY }; // replace 0 w/ PIPELINE
+        cv::Mat raw, frame;
 
         public:
-            void initialise(unsigned int maxFps);
+            std::mutex cameraMutex;
+            std::vector<unsigned char> buffer;
+
+            static Camera instance; // We only want one camera.
+
+            void capture();
+            void encode();
     };
 }

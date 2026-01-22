@@ -32,9 +32,10 @@ ninja
 TODO:
 - consider max and min angles for servos and torque limits
 - spawn threads in main file and dispatch angles
-- path, camera and arm tests
+- path, camera, streamer and arm tests
 - joint loading from files
 - Collision detection
 - Camera integration (calibration, checkpoint generation, etc.)
 - Documentation (overview of system architecture, )
-- Webserver - security considerations, test js
+- Webserver - security considerations (wss, login for viewers), test js, catch can't connect exception and loop
+- Streamer needs to accept commands (corresponding frontend)

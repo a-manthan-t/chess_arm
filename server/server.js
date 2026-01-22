@@ -14,9 +14,9 @@ const hashConfig = {
     digest: "sha512"
 }
 
-const app    = express()
+const app = express()
 const server = http.createServer(app)
-const wss    = new WebSocketServer({ server })
+const wss = new WebSocketServer({ server })
 
 function broadcast(message) {
     wss.clients.forEach(client => {
@@ -33,6 +33,8 @@ const streamingHash = crypto.pbkdf2Sync(
     hashConfig.keylen,
     hashConfig.digest
 );
+
+// Add viewer hash
 
 app.use(express.static("res"))
 app.get("/", (req, res) => res.sendFile(`${resources}/index.html`))
@@ -57,7 +59,8 @@ wss.on("connection", ws => {
                         if (crypto.timingSafeEqual(streamingHash, userHash)) {
                             ws.isRobot = true
                             ws.uuid = uuid()
-                            broadcast(`new_robot;${ws.uuid}`)
+                            broadcast(`new_robot;ws.uuid`)
+                            console.log(`New Robot: ${ws.uuid}`)
                             ws.send("success")
                             break
                         }
@@ -73,8 +76,9 @@ wss.on("connection", ws => {
                     ws.send("fail")
                     break
             }
-        } else if (ws.isRobot && msg.data instanceof ArrayBuffer) {
-            broadcast({ id: ws.uuid, data: msg.data })
+        } else if (ws.isRobot && msg.data instanceof Buffer) {
+            broadcast(`frame;${ws.uuid}`)
+            broadcast(msg.data) // maybe combine into one (via blobs)?
         }
     }
 })

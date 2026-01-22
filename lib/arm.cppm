@@ -32,8 +32,8 @@ export namespace arm {
         float granularity;
         Orientation base;
 
-        std::mutex m;
-        std::condition_variable cv;
+        std::mutex armMutex;
+        std::condition_variable flagCondition;
         std::atomic<PathFlag> pathFlag { PathFlag::Stopped };
         std::deque<Checkpoint> checkpoints;
 
