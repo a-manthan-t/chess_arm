@@ -1,13 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Arm Camera Viewer</title>
-    <script src="./connect.js" defer></script>
-</head>
-<body>
-    <h1>Arm Camera Viewer</h1>
-    <button id="send">Send</button>
-    <img id="view" src="" alt="Camera View" style="max-width: 100%">
-</body>
+    <head>
+        <meta charset="UTF-8">
+        <title>Robot Camera Viewer</title>
+        <script src="./connect.js" defer></script>
+    </head>
+    <body>
+        <h2>Robot Camera Viewer</h2>
+        <div id="login_menu">
+            <label id="login_label" for="token">Enter Login Token</label> <br> <br>
+            <input id="token" type="password" placeholder="Login Token" style="margin-bottom: 1em;"> <br>
+            <button id="send" style="margin-bottom: 1em">Send</button>
+        </div>
+        <div id="viewer" hidden>
+            <div style="display: flex; justify-content: space-between;">
+                <div>
+                    <button id="previous">Previous Robot</button>
+                    <label id="robot_count">0 of 0</label>
+                    <button id="next">Next Robot</button>
+                </div>
+                <div>
+                    <label for="stop">Stop Location:</label>
+                    <input id="stop" type="text" placeholder="A Quat Maybe???">
+                    <button id="execute">Execute Emergency Stop</button>
+                </div>
+            </div>
+            <img id="view" src="" alt="No Robots Available Yet" style="max-width: 100%; margin-top: 0.25em;">
+        </div>
+    </body>
 </html>

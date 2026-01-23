@@ -7,19 +7,28 @@ module;
 // Handles taking and processing camera input.
 module camera;
 
+import arm;
+
 namespace camera {
     Camera Camera::instance {};
 
-    void Camera::capture() {
-        camera >> raw;
-        // process
-        camera >> frame; // Use processed image instead
+    void Camera::process() {
+        if (camera.read(raw)) {
+            frame = raw; // Change for processing
+        }
     }
 
-    void Camera::encode() {
-        if (!frame.empty()) {
-            std::lock_guard lock { cameraMutex };
-            cv::imencode(".jpg", frame, buffer);
+    [[noreturn]] void Camera::loop(const arm::Arm* robot) {
+        while (true) {
+            process();
+
+            // Update robot
+
+            // For streaming purposes.
+            if (!frame.empty()) {
+                std::lock_guard lock { cameraMutex }; // Lock so streamer doesn't read a partially ready image.
+                cv::imencode(".jpg", frame, buffer);
+            }
         }
     }
 }

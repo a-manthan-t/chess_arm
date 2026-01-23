@@ -6,6 +6,26 @@ import { fileURLToPath } from "url"
 import { v4 as uuid } from "uuid"
 import { WebSocketServer } from "ws"
 
+/* Server Construction */
+
+const app = express()
+const server = http.createServer(app)
+const wss = new WebSocketServer({ server })
+
+/* Utilities */
+
+var robots = [] // Keep track of connected robots' ids.
+
+function broadcast(message, filterFun = (_) => true) {
+    wss.clients.forEach(client => {
+        if (client.status === 2 && filterFun(client)) {
+            client.send(message)
+        }
+    })
+}
+
+/* Config */
+
 const resources = `${path.dirname(fileURLToPath(import.meta.url))}/res`
 const hashConfig = {
     salt: crypto.randomBytes(16),
@@ -14,17 +34,13 @@ const hashConfig = {
     digest: "sha512"
 }
 
-const app = express()
-const server = http.createServer(app)
-const wss = new WebSocketServer({ server })
-
-function broadcast(message) {
-    wss.clients.forEach(client => {
-        if (!client.isRobot) {
-            client.send(message)
-        }
-    })
-}
+const viewingHash = crypto.pbkdf2Sync(
+    process.env.VIEWING_TOKEN,
+    hashConfig.salt,
+    hashConfig.iterations,
+    hashConfig.keylen,
+    hashConfig.digest
+);
 
 const streamingHash = crypto.pbkdf2Sync(
     process.env.STREAMING_TOKEN,
@@ -34,20 +50,22 @@ const streamingHash = crypto.pbkdf2Sync(
     hashConfig.digest
 );
 
-// Add viewer hash
+/* Listeners */
 
 app.use(express.static("res"))
 app.get("/", (req, res) => res.sendFile(`${resources}/index.html`))
+
 wss.on("connection", ws => {
-    ws.isRobot = false
+    ws.status = 0 // 0 = new, 1 = robot, 2 = viewer
 
     ws.onmessage = msg => {
         if (typeof msg.data === "string") {
             const query = msg.data.split(";")
+            var valid = true
 
             switch (query[0]) {
-                case "promote":
-                    if (!ws.isRobot && query[1] !== undefined) {
+                case "promote": // Request by a robot to publish a stream.
+                    if (ws.status === 0 && query[1] !== undefined) {
                         const userHash = crypto.pbkdf2Sync(
                             query[1],
                             hashConfig.salt,
@@ -57,30 +75,85 @@ wss.on("connection", ws => {
                         )
 
                         if (crypto.timingSafeEqual(streamingHash, userHash)) {
-                            ws.isRobot = true
+                            ws.status = 1
                             ws.uuid = uuid()
-                            broadcast(`new_robot;ws.uuid`)
-                            console.log(`New Robot: ${ws.uuid}`)
-                            ws.send("success")
-                            break
+                            robots.push(ws.uuid)
+
+                            wss.clients.forEach(client => {
+                                if (client.currentRobot === undefined) {
+                                    client.currentRobot = robots[0]
+                                }
+                            })
+
+                            console.log(`New Robot: ${ws._socket.remoteAddress}`)
+                            broadcast(`new_robot`)
+                            ws.send("promotion_success")
+                        } else {
+                            ws.send("promotion_fail")
                         }
-                    }
-
-                    ws.send("fail")
+                    } else valid = false
                     break
-                case "cmd":
-                    if (!ws.isRobot && query[1] !== undefined) {
+                case "grant_viewing": // Request by a new user to view streams.
+                    if (ws.status === 0 && query[1] !== undefined) {
+                        const userHash = crypto.pbkdf2Sync(
+                            query[1],
+                            hashConfig.salt,
+                            hashConfig.iterations,
+                            hashConfig.keylen,
+                            hashConfig.digest
+                        )
 
-                    }
+                        if (crypto.timingSafeEqual(viewingHash, userHash)) {
+                            ws.status = 2
+                            ws.currentRobot = robots[0]
 
-                    ws.send("fail")
+                            console.log(`New Viewer: ${ws._socket.remoteAddress}`)
+                            ws.send(`viewing_granted;${robots.length}`)
+                        } else {
+                            ws.send("viewing_denied")
+                        }
+                    } else valid = false
                     break
+                case "switch": // Change to a different stream.
+                    if (ws.status === 2 && query[1] !== undefined) {
+                        ws.currentRobot = robots[parseInt(query[1])]
+                    } else valid = false
+                    break
+                case "stop": // Emergency stop for the robot.
+                    if (ws.status === 2 && query[1] !== undefined && query[2] !== undefined) {
+                        // Pause requests
+                    } else valid = false
+                    break
+                default: valid = false
             }
-        } else if (ws.isRobot && msg.data instanceof Buffer) {
-            broadcast(`frame;${ws.uuid}`)
-            broadcast(msg.data) // maybe combine into one (via blobs)?
+
+            if (!valid) {
+                ws.send("invalid") // Requests made via the provided frontend/robot are always valid.
+            }
+        } else if (ws.status === 1 && msg.data instanceof Buffer) { // Byte buffers are received from the robots.
+            // Only send to viewers who are currently watching the given robot.
+            broadcast(msg.data, (client) => client.currentRobot === ws.uuid)
         }
     }
+
+    ws.on("close", _ => {
+        if (ws.status === 1) {
+            robots = robots.filter(robot => robot !== ws.uuid) // Remove disconnected robot.
+
+            // Reset viewers to first view (although this code doesn't care
+            // about whether the viewers were actually viewing this robot.
+            wss.clients.forEach(client => {
+                if (client.status === 2) {
+                    client.currentRobot = robots[0]
+                }
+            })
+
+            console.log(`Robot Disconnected: ${ws._socket.remoteAddress}`)
+            broadcast("robot_disconnected")
+        }
+    })
 })
+
+/* Start Server */
 
 server.listen(8008, () => console.log("Running on port 8008..."))

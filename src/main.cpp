@@ -1,64 +1,62 @@
+#include <fstream>
+#include <print>
 #include <thread>
-#include <iostream>
-#include <opencv2/opencv.hpp>
-#include "../lib/easywsclient.hpp"
 
 import quaternion;
-import arm;
 import streamer;
+import camera;
+import arm;
 
 using namespace quaternion;
-
-import camera;
 
 #ifdef TESTING
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "../lib/doctest.h"
 #else
-int main() {
-    // PIPELINE defined in CMakeLists.txt.
-    cv::VideoCapture cap { 0, cv::CAP_ANY };
 
-    std::thread t { streamer::stream, "ws://localhost:8008", "very-secure-password", 15 };
+int main(int argc, char* argv[]) {
+    using namespace arm;
 
-    while (true) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-
-        cv::Mat img;
-        cap >> img;
-
-        cv::Mat grey;
-        cv::cvtColor(img, grey, cv::COLOR_BGR2GRAY);
-
-        cv::Mat thresh;
-        cv::threshold(grey, thresh, 128, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
-
-        std::vector<std::vector<cv::Point>> contours;
-        std::vector<cv::Vec4i> hierarchy;
-        cv::findContours(
-            thresh,
-            contours,
-            hierarchy,
-            cv::RETR_TREE,
-            cv::CHAIN_APPROX_SIMPLE
-        );
-
-        std::vector<std::vector<cv::Point>> filteredContours;
-        for (const std::vector<cv::Point>& c : contours) {
-            double area = cv::contourArea(c);
-            if (area > 100) { // only keep contours larger than 100 pixels
-                filteredContours.push_back(c);
-            }
-        }
-
-        cv::Mat output = img.clone();
-        cv::drawContours(output, filteredContours, -1, cv::Scalar(0, 255, 0), 2);
-
-        camera::Camera::instance.capture();
-        camera::Camera::instance.encode();
+    if (argc < 2) {
+        std::println(stderr, "Please provide a configuration file.");
+        return 1;
     }
 
-    t.join();
+    std::ifstream config { argv[1] };
+
+    if (!config) {
+        std::println(stderr, "Could not open configuration file.");
+        return 1;
+    }
+
+    std::string line;
+    while (std::getline(config, line)) {
+        std::println("{}", line);
+    }
+
+     // Actually use the file output.
+
+    std::vector joints {
+        Joint { Axis::Z, 1, Axis::Z },
+        Joint { Axis::Z, 3, Axis::Y },
+        Joint { Axis::Y, 1, Axis::X },
+        Joint { Axis::X, 2, Axis::Z },
+        Joint { Axis::Z, 3, Axis::Y },
+        Joint { Axis::X, 1, Axis::X },
+        Joint { Axis::X, 0, Axis::Z },
+        Joint { Axis::X, 0, Axis::Y },
+        Joint { Axis::X, 0, Axis::X }
+    };
+
+    Arm robot { joints, 3 };
+
+    std::thread stream { &streamer::stream, "ws://localhost:8008", "very-secure-password", 15, &robot }; // read these from files
+    std::thread camera { &camera::Camera::loop, &camera::Camera::instance, &robot };
+    std::thread arm { &Arm::follow, &robot };
+
+    stream.join();
+    camera.join();
+    arm.join();
 
     return 0;
 }

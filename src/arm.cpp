@@ -23,7 +23,7 @@ namespace arm {
     using namespace quaternion;
     using namespace path;
 
-    Arm::Arm(std::vector<Joint> joints, size_t wristSize, unsigned int delay_ms, float granularity, Orientation base)
+    Arm::Arm(std::vector<Joint> joints, size_t wristSize, unsigned int delay_ms, float granularity, const Orientation& base)
         : joints(std::move(joints)), wristSize(wristSize), delay_ms(delay_ms), granularity(granularity), base(base) {
         checkpoints.emplace_front(locateEndEffector(), 0);
     }
@@ -173,8 +173,8 @@ namespace arm {
                 dispatchAngles();
 
                 t = static_cast<float>(duration_cast<milliseconds>(high_resolution_clock::now() - startTime).count()) / path.duration;
-                std::unique_lock lock { armMutex };
 
+                std::unique_lock lock { armMutex };
                 flagCondition.wait_for(lock, milliseconds(delay_ms), [&] -> bool {
                     // If we are told to halt, wake up and exit the while loop to go to the safety checkpoint.
                     if (pathFlag.load() == PathFlag::Halt) {
@@ -186,7 +186,7 @@ namespace arm {
                 });
             }
 
-            if (pathFlag.load() != PathFlag::Halt) {
+            if (pathFlag.load() != PathFlag::Halt) { // To stop going to the original path's endpoint.
                 // Since the last t used will be less than 1, we need this final correction.
                 ccdTo(path(1));
                 dispatchAngles();

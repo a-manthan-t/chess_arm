@@ -25,9 +25,9 @@ ninja
 - [Doctest](https://github.com/doctest/doctest)
 - [easywsclient](https://github.com/dhbaird/easywsclient)
 
-##### Python
+##### JavaScript
 
-- [websockets](https://pypi.org/project/websockets/)
+// Fill packages
 
 TODO:
 - consider max and min angles for servos and torque limits
@@ -37,5 +37,6 @@ TODO:
 - Collision detection
 - Camera integration (calibration, checkpoint generation, etc.)
 - Documentation (overview of system architecture, )
-- Webserver - security considerations (wss, login for viewers), test js, catch can't connect exception and loop
+- Webserver - security considerations (wss), test js
 - Streamer needs to accept commands (corresponding frontend)
+
