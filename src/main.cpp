@@ -1,3 +1,4 @@
+#include <charconv>
 #include <fstream>
 #include <print>
 #include <thread>
@@ -30,39 +31,87 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    std::string line;
-    std::getline(config, line);
-    // websocket_url;password;fps (empty if none)
-    std::getline(config, line);
-    // Line containing wrist size in int
-    while (std::getline(config, line)) {
-        // remaining are joints in X/Y/Z;length;rotAxis format
-        std::println("{}", line);
+    std::string line, token;
+
+    /* Get stream configuration. */
+
+    if (!std::getline(config, line)) {
+        std::println(stderr, "Unexpected configuration file end.");
+        return 1;
     }
 
-    std::vector joints {
-        Joint { Axis::Z, 1, Axis::Z },
-        Joint { Axis::Z, 3, Axis::Y },
-        Joint { Axis::Y, 1, Axis::X },
-        Joint { Axis::X, 2, Axis::Z },
-        Joint { Axis::Z, 3, Axis::Y },
-        Joint { Axis::X, 1, Axis::X },
-        Joint { Axis::X, 0, Axis::Z },
-        Joint { Axis::X, 0, Axis::Y },
-        Joint { Axis::X, 0, Axis::X }
-    };
+    std::istringstream lineStream { line };
+    std::vector<std::string> streamConfig;
 
-    Arm robot { joints, 3 };
+    while (std::getline(lineStream, token, ';')) {
+        streamConfig.push_back(token);
+    }
+
+    /* Get the number of wrist joints in the arm. */
+
+    if (!std::getline(config, line)) {
+        std::println(stderr, "Unexpected configuration file end.");
+        return 1;
+    }
+
+    size_t wristSize;
+    auto [_, err] = std::from_chars(line.data(), line.data() + line.size(), wristSize);
+
+    if (err != std::errc {}) {
+        std::println(stderr, "Could not parse wrist size.");
+        return 1;
+    }
+
+    /* Get the descriptions of each joint in the arm. */
+
+    std::vector<Joint> joints;
+
+    while (std::getline(config, line)) {
+        if (line.size() < 5) { // Should at least be A;_;B.
+            std::println(stderr, "Could not parse joints.");
+            return 1;
+        }
+
+        float segmentLength;
+        auto [_, err] = std::from_chars(line.data() + 1, line.data() + line.size() - 1, segmentLength);
+
+        if (err != std::errc {}) {
+            std::println(stderr, "Could not parse joints.");
+            return 1;
+        }
+
+        Axis armAxis { line.front() == 'X' ? Axis::X : line.front() == 'Y' ? Axis::Y : Axis::Z };
+        Axis rotAxis { line.back() == 'X' ? Axis::X : line.back() == 'Y' ? Axis::Y : Axis::Z };
+
+        joints.emplace_back(armAxis, segmentLength, rotAxis);
+    }
+
+    if (joints.size() < wristSize) {
+        std::println(stderr, "Wrist size is greater than number of joints.");
+        return 1;
+    }
+
+    /* Configure and start the robot, vision, and streaming threads. */
+
+    Arm robot { joints, wristSize };
     Camera cam { &robot };
 
-    // read these from files
     std::thread arm { &Arm::follow, &robot };
     std::thread vision { &Camera::loop, &cam };
-    std::thread stream { &streamer::stream, "ws://localhost:8008", "very-secure-password", 15, &cam };
+
+    if (unsigned int fps; streamConfig.size() == 3) {
+        auto [_, err] = std::from_chars(streamConfig[2].data(), streamConfig[2].data() + streamConfig[2].size(), fps);
+
+        if (err == std::errc {}) {
+            std::thread stream { &streamer::stream, streamConfig[0], streamConfig[1], fps, &cam };
+            stream.join();
+        } else {
+            std::println(stderr, "Could not parse FPS.");
+        }
+    }
 
     arm.join();
     vision.join();
-    stream.join();
 
     return 0;
 }

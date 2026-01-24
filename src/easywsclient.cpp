@@ -466,6 +466,7 @@ easywsclient::WebSocket::pointer from_url(const std::string& url, bool useMask, 
       fprintf(stderr, "ERROR: origin size limit exceeded: %s\n", origin.c_str());
       return NULL;
     }
+    // Added wss
     if (false) { }
     else if (sscanf(url.c_str(), "ws://%[^:/]:%d/%s", host, &port, path) == 3) {
     }

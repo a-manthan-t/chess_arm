@@ -11,7 +11,7 @@ import arm;
 
 export namespace camera {
     class Camera {
-        cv::VideoCapture camera { 0, cv::CAP_ANY }; // replace 0 w/ PIPELINE from CMakeLists.txt
+        cv::VideoCapture camera { PIPELINE, cv::CAP_ANY };
         cv::Mat raw, frame;
 
         void processRaw();

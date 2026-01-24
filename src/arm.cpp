@@ -23,8 +23,8 @@ namespace arm {
     using namespace path;
     using namespace quaternion;
 
-    Arm::Arm(std::vector<Joint> joints, size_t wristSize, unsigned int delay_ms, float granularity, const Orientation& base)
-        : joints(std::move(joints)), wristSize(wristSize), delay_ms(delay_ms), granularity(granularity), base(base) {
+    Arm::Arm(const std::vector<Joint>& joints, size_t wristSize, unsigned int delay_ms, float granularity, const Orientation& base)
+        : joints(joints), wristSize(wristSize), delay_ms(delay_ms), granularity(granularity), base(base) {
         checkpoints.emplace_front(locateEndEffector(), 0);
     }
 

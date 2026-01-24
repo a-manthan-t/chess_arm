@@ -5,12 +5,15 @@ set(CMAKE_CXX_STANDARD 23)
 
 if (TESTING)
     add_compile_definitions(TESTING)
+endif (TESTING)
+
+if (PC_BUILD)
     add_compile_definitions(PIPELINE=0)
-else (TESTING)
+else (PC_BUILD)
     add_compile_definitions("PIPELINE=\"libcamerasrc ! videoconvert ! \" \
                                       \"video/x-raw,format=BGR888,width=640,height=480 ! \" \
                                       \"appsink sync=false drop=true max-buffers=1\"")
-endif (TESTING)
+endif (PC_BUILD)
 
 add_executable(chess_arm
         src/main.cpp

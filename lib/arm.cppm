@@ -41,8 +41,7 @@ export namespace arm {
         Path createPath();
 
         public:
-            // Ensure wrist_size <= joints.size()!
-            Arm(std::vector<Joint> joints, size_t wristSize, unsigned int delay_ms = 5,
+            Arm(const std::vector<Joint>& joints, size_t wristSize, unsigned int delay_ms = 5,
                 float granularity = 0.001, const Orientation &base = ORIGIN);
 
             Orientation locateEndEffector() const;

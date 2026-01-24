@@ -31,7 +31,6 @@ function validateStop(command) {
 
 /* Config */
 
-const resources = `${path.dirname(fileURLToPath(import.meta.url))}/res`
 const hashConfig = {
     salt: crypto.randomBytes(16),
     iterations: 100_000,
@@ -58,7 +57,7 @@ const streamingHash = crypto.pbkdf2Sync(
 /* Listeners */
 
 app.use(express.static("res"))
-app.get("/", (req, res) => res.sendFile(`${resources}/index.html`))
+app.get("/", (req, res) => res.sendFile(`${path.dirname(fileURLToPath(import.meta.url))}/res/index.html`))
 
 wss.on("connection", ws => {
     ws.status = 0 // 0 = new, 1 = robot, 2 = viewer
@@ -166,4 +165,4 @@ wss.on("connection", ws => {
 
 /* Start Server */
 
-server.listen(8008, () => console.log("Running on port 8008..."))
+server.listen(() => console.log("Running server..."))
