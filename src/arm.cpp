@@ -133,6 +133,12 @@ namespace arm {
         }
     }
 
+    // Stop but calculate an appropriate safety orientation.
+    void Arm::stop(bool abort) {
+        Quaternion safety { vector(0, 0, 0) }; // Calculate properly.
+        stop(safety, abort);
+    }
+
     void Arm::resume() {
         pathFlag.store(PathFlag::Moving);
         flagCondition.notify_one();

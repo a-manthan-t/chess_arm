@@ -66,8 +66,9 @@ document.getElementById("execute").onclick = () => {
     const x = document.getElementById("stop_x").value
     const y = document.getElementById("stop_y").value
     const z = document.getElementById("stop_z").value
+    const auto = document.getElementById("auto").checked
     const abort = document.getElementById("abort").checked
-    ws.send(`stop;${x},${y},${z};${abort}`)
+    ws.send(`stop;${x},${y},${z};${auto};${abort}`)
 }
 
 document.getElementById("previous").onclick = switchRobot

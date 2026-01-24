@@ -17,7 +17,7 @@ import camera;
 namespace streamer {
     using easywsclient::WebSocket;
 
-    // Run the stream.
+    // Start the stream.
     [[noreturn]] void stream(const std::string& url, const std::string& token, unsigned int fps, camera::Camera* cam) {
         std::unique_ptr<WebSocket> ws;
         std::string streamToken { "promote;" + token };
@@ -46,10 +46,14 @@ namespace streamer {
                     // Intercept emergency stop commands.
                     ws->poll();
                     ws->dispatchBinary([cam](const std::vector<unsigned char>& message) {
-                        std::array<float, 4> floats {};
+                        std::array<float, 5> floats {};
                         std::memcpy(floats.data(), message.data(), message.size()); // Convert bytes to floats.
 
-                        cam->robot->stop(quaternion::vector(floats[0], floats[1], floats[2]), floats[3] == 1);
+                        if (floats[3] == 0) {
+                            cam->robot->stop(quaternion::vector(floats[0], floats[1], floats[2]), floats[4] == 1);
+                        } else { // If requested to automatically calculate the stop target.
+                            cam->robot->stop(floats[4] == 1);
+                        }
                     });
 
                     std::lock_guard lock { cam->cameraMutex }; // Lock so camera doesn't change buffer.

@@ -125,12 +125,13 @@ wss.on("connection", ws => {
                     } else valid = false
                     break
                 case "stop": // Emergency stop for the robot.
-                    if (ws.status === 2 && query[1] !== undefined && query[2] !== undefined && validateStop(query[1])) {
-                        const message = query[1].split(",").map(element => parseFloat(element))
-                        const abort = query[2] === "true"
+                    if (ws.status === 2 && (query[1] !== undefined && validateStop(query[1]) || query[2] === "true") && query[3] !== undefined) {
+                        const auto = query[2] === "true" ? 1 : 0
+                        const message = auto ? [0, 0, 0] : query[1].split(",").map(element => parseFloat(element))
+                        const abort = query[3] === "true" ? 1 : 0
 
-                        console.log(`Emergency ${abort ? "Abort" : "Pause"} Ordered on ${ws.currentRobot} to (${message.join(", ")})`)
-                        broadcast(new Float32Array(message.concat([abort ? 1 : 0])), (client) => ws.currentRobot === client.uuid, 1)
+                        console.log(`Emergency ${abort ? "Abort" : "Pause"} Ordered on ${ws.currentRobot} to (${auto ? "Auto" : message.join(", ")})`)
+                        broadcast(new Float32Array(message.concat([auto, abort])), (client) => ws.currentRobot === client.uuid, 1)
                     } else valid = false
                     break
                 default: valid = false

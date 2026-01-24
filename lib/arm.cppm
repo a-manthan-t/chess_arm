@@ -51,6 +51,7 @@ export namespace arm {
 
             void addCheckpoint(const Checkpoint& checkpoint, bool shouldResume);
             void stop(Quaternion safety, bool abort);
+            void stop(bool abort);
             void resume();
             [[noreturn]] void follow();
     };
