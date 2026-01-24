@@ -27,7 +27,9 @@ ninja
 
 ##### JavaScript
 
-// Fill packages
+- [express](https://www.npmjs.com/package/express)
+- [uuid](https://www.npmjs.com/package/uuid)
+- [ws](https://www.npmjs.com/package/ws)
 
 TODO:
 - consider max and min angles for servos and torque limits
@@ -38,5 +40,4 @@ TODO:
 - Camera integration (calibration, checkpoint generation, etc.)
 - Documentation (overview of system architecture, )
 - Webserver - security considerations (wss), test js
-- Streamer needs to accept commands (corresponding frontend)
-
+- Stop checkpoint generation from quat

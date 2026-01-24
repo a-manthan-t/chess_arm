@@ -12,8 +12,8 @@ import quaternion;
 import path;
 
 export namespace arm {
-    using namespace quaternion;
     using namespace path;
+    using namespace quaternion;
 
     struct Joint {
         const Quaternion armSegment; // The position vector to the arm segment tip from the local origin when angle == 0.
@@ -50,7 +50,7 @@ export namespace arm {
             void ccdTo(const Orientation& target);
 
             void addCheckpoint(const Checkpoint& checkpoint, bool shouldResume);
-            void stop(const Orientation& safety, float currentSpeed, bool abort);
+            void stop(Quaternion safety, bool abort);
             void resume();
             [[noreturn]] void follow();
     };

@@ -1,11 +1,15 @@
-const ws = new WebSocket(`ws://${window.location.host}`)
+let ws = new WebSocket(`ws://${window.location.host}`) // Open websocket connection.
 
-var currentRobot = 1
-var robotCount = 0
+let currentRobot = 1
+let robotCount = 0
 
 function setRobotCount() {
     document.getElementById("robot_count").innerHTML
         = `${robotCount === 0 ? 0 : currentRobot} of ${robotCount}`
+
+    if (robotCount === 0) {
+        document.getElementById("view").src = ""
+    }
 }
 
 function switchRobot(left = true) {
@@ -25,7 +29,7 @@ ws.onmessage = msg => {
     if (msg.data instanceof Blob) { // Happens when we get an image from the server.
         document.getElementById("view").src = URL.createObjectURL(msg.data)
     } else {
-        let data = msg.data.split(";")
+        const data = msg.data.split(";")
 
         switch (data[0]) {
             case "new_robot":
@@ -56,6 +60,14 @@ document.getElementById("send").onclick = () => {
     document.getElementById("token").value = ""
     document.getElementById("login_label").innerHTML = "Enter Login Token"
     document.getElementById("login_menu").setAttribute("hidden", true)
+}
+
+document.getElementById("execute").onclick = () => {
+    const x = document.getElementById("stop_x").value
+    const y = document.getElementById("stop_y").value
+    const z = document.getElementById("stop_z").value
+    const abort = document.getElementById("abort").checked
+    ws.send(`stop;${x},${y},${z};${abort}`)
 }
 
 document.getElementById("previous").onclick = switchRobot

@@ -10,25 +10,33 @@ module camera;
 import arm;
 
 namespace camera {
-    Camera Camera::instance {};
-
-    void Camera::process() {
+    void Camera::processRaw() {
         if (camera.read(raw)) {
-            frame = raw; // Change for processing
+            // Detect board
+            // Get coordinates of squares (relative to???) - maybe corners and interpolate is fine
+            // Identify pieces (and target ones in different colours)
+            // Highlight everything and save to frame
+            frame = raw;
         }
     }
 
-    [[noreturn]] void Camera::loop(const arm::Arm* robot) {
+    void Camera::generateCheckpoints() {
+
+    }
+
+    // For streaming purposes.
+    void Camera::encodeFrame() {
+        if (!frame.empty()) {
+            std::lock_guard lock { cameraMutex }; // Lock so streamer doesn't read a partially ready image.
+            cv::imencode(".jpg", frame, buffer);
+        }
+    }
+
+    [[noreturn]] void Camera::loop() {
         while (true) {
-            process();
-
-            // Update robot
-
-            // For streaming purposes.
-            if (!frame.empty()) {
-                std::lock_guard lock { cameraMutex }; // Lock so streamer doesn't read a partially ready image.
-                cv::imencode(".jpg", frame, buffer);
-            }
+            processRaw();
+            generateCheckpoints();
+            encodeFrame();
         }
     }
 }

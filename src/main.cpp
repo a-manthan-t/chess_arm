@@ -16,6 +16,7 @@ using namespace quaternion;
 
 int main(int argc, char* argv[]) {
     using namespace arm;
+    using namespace camera;
 
     if (argc < 2) {
         std::println(stderr, "Please provide a configuration file.");
@@ -30,11 +31,14 @@ int main(int argc, char* argv[]) {
     }
 
     std::string line;
+    std::getline(config, line);
+    // websocket_url;password;fps (empty if none)
+    std::getline(config, line);
+    // Line containing wrist size in int
     while (std::getline(config, line)) {
+        // remaining are joints in X/Y/Z;length;rotAxis format
         std::println("{}", line);
     }
-
-     // Actually use the file output.
 
     std::vector joints {
         Joint { Axis::Z, 1, Axis::Z },
@@ -49,14 +53,16 @@ int main(int argc, char* argv[]) {
     };
 
     Arm robot { joints, 3 };
+    Camera cam { &robot };
 
-    std::thread stream { &streamer::stream, "ws://localhost:8008", "very-secure-password", 15, &robot }; // read these from files
-    std::thread camera { &camera::Camera::loop, &camera::Camera::instance, &robot };
+    // read these from files
     std::thread arm { &Arm::follow, &robot };
+    std::thread vision { &Camera::loop, &cam };
+    std::thread stream { &streamer::stream, "ws://localhost:8008", "very-secure-password", 15, &cam };
 
-    stream.join();
-    camera.join();
     arm.join();
+    vision.join();
+    stream.join();
 
     return 0;
 }

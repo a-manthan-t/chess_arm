@@ -20,8 +20,8 @@ import quaternion;
 import path;
 
 namespace arm {
-    using namespace quaternion;
     using namespace path;
+    using namespace quaternion;
 
     Arm::Arm(std::vector<Joint> joints, size_t wristSize, unsigned int delay_ms, float granularity, const Orientation& base)
         : joints(std::move(joints)), wristSize(wristSize), delay_ms(delay_ms), granularity(granularity), base(base) {
@@ -116,7 +116,7 @@ namespace arm {
 
     // Pause or fully stop the arm's motion if a halt command has not already been
     // given. Note that an arm can be stopped again on its way to a safety orientation.
-    void Arm::stop(const Orientation& safety, float currentSpeed, bool abort) {
+    void Arm::stop(Quaternion safety, bool abort) {
         if (pathFlag.load() != PathFlag::Halt) {
             std::lock_guard lock { armMutex };
 
@@ -126,8 +126,8 @@ namespace arm {
 
             // Set it up so that the next path brings the arm to the safe orientation.
             Orientation currentOrientation { locateEndEffector() };
-            checkpoints.emplace_front(safety, 0);
-            checkpoints.emplace_front(currentOrientation, currentSpeed);
+            //checkpoints.emplace_front(safety, 0);
+            //checkpoints.emplace_front(currentOrientation, currentSpeed);
 
             pathFlag.store(PathFlag::Halt);
         }

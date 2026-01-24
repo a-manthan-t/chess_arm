@@ -14,14 +14,19 @@ const wss = new WebSocketServer({ server })
 
 /* Utilities */
 
-var robots = [] // Keep track of connected robots' ids.
+let robots = [] // Keep track of connected robots' ids.
 
-function broadcast(message, filterFun = (_) => true) {
+function broadcast(message, filterFun = (_) => true, status = 2) {
     wss.clients.forEach(client => {
-        if (client.status === 2 && filterFun(client)) {
+        if (client.status === status && filterFun(client)) {
             client.send(message)
         }
     })
+}
+
+function validateStop(command) {
+    const coords = command.split(",")
+    return coords.length === 3 && coords.every(element => !isNaN(parseFloat(element)));
 }
 
 /* Config */
@@ -61,7 +66,7 @@ wss.on("connection", ws => {
     ws.onmessage = msg => {
         if (typeof msg.data === "string") {
             const query = msg.data.split(";")
-            var valid = true
+            let valid = true
 
             switch (query[0]) {
                 case "promote": // Request by a robot to publish a stream.
@@ -80,12 +85,12 @@ wss.on("connection", ws => {
                             robots.push(ws.uuid)
 
                             wss.clients.forEach(client => {
-                                if (client.currentRobot === undefined) {
+                                if (client.currentRobot === "") {
                                     client.currentRobot = robots[0]
                                 }
                             })
 
-                            console.log(`New Robot: ${ws._socket.remoteAddress}`)
+                            console.log(`New Robot: ${ws._socket.remoteAddress}, ${ws.uuid}`)
                             broadcast(`new_robot`)
                             ws.send("promotion_success")
                         } else {
@@ -105,7 +110,7 @@ wss.on("connection", ws => {
 
                         if (crypto.timingSafeEqual(viewingHash, userHash)) {
                             ws.status = 2
-                            ws.currentRobot = robots[0]
+                            ws.currentRobot = robots.length !== 0 ? robots[0] : "";
 
                             console.log(`New Viewer: ${ws._socket.remoteAddress}`)
                             ws.send(`viewing_granted;${robots.length}`)
@@ -115,13 +120,17 @@ wss.on("connection", ws => {
                     } else valid = false
                     break
                 case "switch": // Change to a different stream.
-                    if (ws.status === 2 && query[1] !== undefined) {
+                    if (ws.status === 2 && query[1] !== undefined && !isNaN(parseInt(query[1]))) {
                         ws.currentRobot = robots[parseInt(query[1])]
                     } else valid = false
                     break
                 case "stop": // Emergency stop for the robot.
-                    if (ws.status === 2 && query[1] !== undefined && query[2] !== undefined) {
-                        // Pause requests
+                    if (ws.status === 2 && query[1] !== undefined && query[2] !== undefined && validateStop(query[1])) {
+                        const message = query[1].split(",").map(element => parseFloat(element))
+                        const abort = query[2] === "true"
+
+                        console.log(`Emergency ${abort ? "Abort" : "Pause"} Ordered on ${ws.currentRobot} to (${message.join(", ")})`)
+                        broadcast(new Float32Array(message.concat([abort ? 1 : 0])), (client) => ws.currentRobot === client.uuid, 1)
                     } else valid = false
                     break
                 default: valid = false
@@ -136,22 +145,22 @@ wss.on("connection", ws => {
         }
     }
 
-    ws.on("close", _ => {
+    ws.onclose = _ => {
         if (ws.status === 1) {
             robots = robots.filter(robot => robot !== ws.uuid) // Remove disconnected robot.
 
             // Reset viewers to first view (although this code doesn't care
-            // about whether the viewers were actually viewing this robot.
+            // about whether the viewers were actually viewing this robot).
             wss.clients.forEach(client => {
                 if (client.status === 2) {
-                    client.currentRobot = robots[0]
+                    client.currentRobot = robots.length !== 0 ? robots[0] : "";
                 }
             })
 
             console.log(`Robot Disconnected: ${ws._socket.remoteAddress}`)
             broadcast("robot_disconnected")
         }
-    })
+    }
 })
 
 /* Start Server */
