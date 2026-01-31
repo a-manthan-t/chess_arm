@@ -165,4 +165,4 @@ wss.on("connection", ws => {
 
 /* Start Server */
 
-server.listen(() => console.log("Running server..."))
+server.listen(80, () => console.log("Running server..."))

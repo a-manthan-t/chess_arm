@@ -42,15 +42,13 @@ ninja
 - [uuid](https://www.npmjs.com/package/uuid)
 - [ws](https://www.npmjs.com/package/ws)
 
-
-- test joint loading from files
-
 TODO:
 - consider max and min angles for servos and torque limits
-- spawn threads in main file and dispatch angles
+- dispatch angles
 - path, camera, streamer and arm, main tests
 - Collision detection
-- Camera integration (calibration, checkpoint generation, etc.)
+- Camera integration (calibration - map to irl coords, checkpoint generation, etc.)
+- user verification of correct camera calibration at start?
 - Documentation (overview of system architecture, etc.)
 - Webserver test js
 - Stop checkpoint generation from quat
