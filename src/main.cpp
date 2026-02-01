@@ -23,12 +23,11 @@ using namespace quaternion;
 #else
 int main(int argc, char* argv[]) {
     using namespace cv; // stop this
-    Mat img { imread("top_down_board.jpg") };
+    Mat img { imread("obscured_board.jpg") };
 
     // Preprocess
     Mat gray, blurImg, edges;
     cvtColor(img, gray, COLOR_BGR2GRAY);
-    // threshold(gray, gray, 127, 255, THRESH_BINARY);
     imwrite("output_bw.jpg", gray);
 
     GaussianBlur(gray, blurImg, Size(5, 5), 0);
@@ -73,7 +72,7 @@ int main(int argc, char* argv[]) {
 
         for (Vec2f g : horizontalLines) {
             double rho2 { g[0] }, theta2 { g[1] };
-            double det = std::cos(theta1)*std::sin(theta2) - std::sin(theta1)*std::cos(theta2);
+            double det = std::cos(theta1) * std::sin(theta2) - std::sin(theta1) * std::cos(theta2);
 
             int
                 x { static_cast<int>((rho1 * std::sin(theta2) - rho2 * std::sin(theta1)) / det) },
@@ -93,7 +92,7 @@ int main(int argc, char* argv[]) {
             }
         }
     }
-
+    std::println("{}", points.size());
     if (points.size() < 40) {
         // make proper error
         std::println(stderr, "The camera could not be calibrated properly, please adjust and try again.");
@@ -112,20 +111,51 @@ int main(int argc, char* argv[]) {
     std::array<std::array<std::array<Point, 4>, 8>, 8> board;
 
     // Render
+    // also efficiency?!
     for (int y { bordeedBoard }; y < breakout; ++y) {
         int row { y * rowIncrement }, nextRow { row + rowIncrement };
         for (int x { bordeedBoard }; x < breakout; ++x) {
             if (x + 1 != breakout && y + 1 != breakout) {
-                std::array quad = { points[x + row], points[x + 1 + row], points[x + 1 + nextRow], points[x + nextRow] };
-                polylines(img, quad, true, { 0, 255, 0 }, 3);
-                board[x - bordeedBoard][breakout - y - 2] = quad;
+                // std::array quad = { points[x + row], points[x + 1 + row], points[x + 1 + nextRow], points[x + nextRow] };
+
+                Point
+                    tl { points[x + row] },
+                    br { points[x + 1 + nextRow] },
+                    vec { br - tl };
+
+                Rect bounds { tl + vec/4, tl + 3 * vec/4 };
+                Mat square { gray(bounds) }, shapes;
+                GaussianBlur(square, square, { 3, 3 }, 0);
+                Canny(square, shapes, 50, 150);
+
+                std::vector<std::vector<Point>> contours;
+                findContours(shapes, contours, RETR_LIST, CHAIN_APPROX_SIMPLE);
+
+                double length {};
+                for (std::vector<Point>& contour : contours) {
+                    length += arcLength(contour, false);
+
+                    for (Point& p : contour) {
+                        p.x += bounds.x;
+                        p.y += bounds.y;
+                    }
+                }
+
+                rectangle(img, { tl, br }, { 0, 255, 0 }, 1.75);
+                if (length > 50) {
+                    drawContours(img, contours, -1, { 0, 0, 255 }, 1);
+                    putText(img, format("%.2f", length), (tl + br) / 2, FONT_HERSHEY_SIMPLEX, 0.3, { 0, 255, 255 }, 1);
+                }
+
+                // //polylines(img, quad, true, { 0, 255, 0 }, 3);
+                // board[x - bordeedBoard][breakout - y - 2] = quad;
             }
 
-            circle(img, points[x + row], 5, { 0, 0, 255 }, -1);
+            circle(img, points[x + row], 2, { 0, 0, 255 }, -1);
         }
     }
 
-    polylines(img, board[4][3], true, { 255, 255, 0 }, 10);
+    //polylines(img, board[4][3], true, { 255, 255, 0 }, 10);
 
     // Write result to file
     imwrite("output_lines.jpg", img);
