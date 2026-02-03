@@ -23,6 +23,7 @@ add_executable(chess_arm
         src/camera.cpp
         src/easywsclient.cpp
         src/streamer.cpp
+        src/board.cpp
 )
 
 target_sources(chess_arm
@@ -33,6 +34,7 @@ target_sources(chess_arm
         lib/arm.cppm
         lib/camera.cppm
         lib/streamer.cppm
+        lib/board.cppm
 )
 
 find_package(OpenCV REQUIRED)

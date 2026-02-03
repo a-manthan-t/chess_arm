@@ -14,6 +14,7 @@ import quaternion;
 import streamer;
 import camera;
 import arm;
+import board;
 
 using namespace quaternion;
 
@@ -23,7 +24,8 @@ using namespace quaternion;
 #else
 int main(int argc, char* argv[]) {
     using namespace cv; // stop this
-    Mat img { imread("obscured_board.jpg") };
+    Mat img { imread("obscured_board.jpg") }, hsv;
+    cvtColor(img, hsv, COLOR_BGR2HSV);
 
     // Preprocess
     Mat gray, blurImg, edges;
@@ -92,6 +94,7 @@ int main(int argc, char* argv[]) {
             }
         }
     }
+
     std::println("{}", points.size());
     if (points.size() < 40) {
         // make proper error
@@ -108,7 +111,7 @@ int main(int argc, char* argv[]) {
         std::sort(points.begin() + row, points.begin() + nextRow, [](Point p1, Point p2) { return p1.x < p2.x; });
     }
 
-    std::array<std::array<std::array<Point, 4>, 8>, 8> board;
+    board::Board chessBoard {};
 
     // Render
     // also efficiency?!
@@ -116,8 +119,6 @@ int main(int argc, char* argv[]) {
         int row { y * rowIncrement }, nextRow { row + rowIncrement };
         for (int x { bordeedBoard }; x < breakout; ++x) {
             if (x + 1 != breakout && y + 1 != breakout) {
-                // std::array quad = { points[x + row], points[x + 1 + row], points[x + 1 + nextRow], points[x + nextRow] };
-
                 Point
                     tl { points[x + row] },
                     br { points[x + 1 + nextRow] },
@@ -141,21 +142,45 @@ int main(int argc, char* argv[]) {
                     }
                 }
 
-                rectangle(img, { tl, br }, { 0, 255, 0 }, 1.75);
-                if (length > 50) {
-                    drawContours(img, contours, -1, { 0, 0, 255 }, 1);
-                    putText(img, format("%.2f", length), (tl + br) / 2, FONT_HERSHEY_SIMPLEX, 0.3, { 0, 255, 255 }, 1);
-                }
+                rectangle(img, { tl, br }, { 0, 255, 0 }, 1);
 
-                // //polylines(img, quad, true, { 0, 255, 0 }, 3);
-                // board[x - bordeedBoard][breakout - y - 2] = quad;
+                chessBoard.white <<= 1;
+                chessBoard.black <<= 1;
+
+                if (length > 50) {
+                    double meanSaturation { mean(hsv(bounds)).val[1] };
+                    bool white { meanSaturation > 75 };
+
+                    if (white) {
+                        chessBoard.white += 1;
+                    } else {
+                        chessBoard.black += 1;
+                    }
+
+                    rectangle(
+                        img,
+                        { tl + vec * 0.1, br - vec * 0.1 },
+                        white ? Scalar { 255, 255, 255 } : Scalar { 0, 0, 0 },
+                        2
+                    );
+
+                    putText(
+                        img,
+                        format("l: %.2f, s: %.2f", length, meanSaturation),
+                        { tl.x, br.y - vec.y / 3 },
+                        FONT_HERSHEY_SIMPLEX,
+                        0.3,
+                        { 0, 255, 255 },
+                        1
+                    );
+                }
             }
 
             circle(img, points[x + row], 2, { 0, 0, 255 }, -1);
         }
     }
 
-    //polylines(img, board[4][3], true, { 255, 255, 0 }, 10);
+    std::println("{} {}", chessBoard.white, chessBoard.black);
 
     // Write result to file
     imwrite("output_lines.jpg", img);

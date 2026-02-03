@@ -45,7 +45,7 @@ ninja
 TODO:
 - consider max and min angles for servos and torque limits
 - dispatch angles
-- path, camera, streamer and arm, main tests
+- path, camera, streamer, arm, board, main tests
 - Collision detection
 - Camera integration (calibration - map to irl coords, checkpoint generation, etc.)
 - user verification of correct camera calibration at start?
