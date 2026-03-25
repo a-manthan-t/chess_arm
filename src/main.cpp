@@ -14,7 +14,7 @@ import quaternion;
 import streamer;
 import camera;
 import arm;
-import board;
+import chess_library;
 
 using namespace quaternion;
 
@@ -24,166 +24,177 @@ using namespace quaternion;
 #else
 int main(int argc, char* argv[]) {
     using namespace cv; // stop this
-    Mat img { imread("obscured_board.jpg") }, hsv;
-    cvtColor(img, hsv, COLOR_BGR2HSV);
+    Mat raw { imread("start.jpg") }, write { imread("start.jpg") };
+    // Extract straight lines from the image.
+        cv::Mat blur, edges, hsv;
+        std::vector<cv::Vec2f> lines; // Lines are in polar form.
 
-    // Preprocess
-    Mat gray, blurImg, edges;
-    cvtColor(img, gray, COLOR_BGR2GRAY);
-    imwrite("output_bw.jpg", gray);
+        // Much of these numbers are somewhat arbitrary and inexact -
+        // the algorithm is robust enough for it to not matter.
+        cv::cvtColor(raw, blur, cv::COLOR_BGR2GRAY);
+        cv::cvtColor(raw, hsv, cv::COLOR_BGR2HSV);
+        cv::GaussianBlur(blur, blur, { 5, 5 }, 0);
+        cv::Canny(blur, edges, 50, 150);
+        cv::HoughLines(edges, lines, 1, CV_PI / 180, 100, 50, 10);
 
-    GaussianBlur(gray, blurImg, Size(5, 5), 0);
-    Canny(blurImg, edges, 50, 150);
+        // Keep only vertical and horizontal lines. Distinction of horizontal
+        // and vertical improves intersection finding efficiency.
+        std::vector<cv::Vec2f> horizontalLines, verticalLines;
+        constexpr double ERROR_ANGLE { CV_PI / 180 * 2 };
 
-    // Line detection
-    std::vector<Vec2f> lines;
-
-    HoughLines(
-        edges,
-        lines,
-        1,
-        CV_PI / 180,
-        100,
-        50,
-        10
-    );
-
-    std::vector<Vec2f> horizontalLines, verticalLines; // separation reduces complexity of intersection finding
-
-    // COMMENT and move to camera!!!
-    for (const auto& l : lines) {
-        // rename stuff, deal with magic numbers
-        constexpr double angleh = CV_PI / 180 * 2;
-        constexpr double anglev1 = CV_PI / 180 * 2;
-        constexpr double anglev2 = CV_PI / 180 * 178;
-
-        bool horizontal = std::abs(l[1] - CV_PI/2) < angleh;
-        bool vertical = l[1] < anglev1 || l[1] > anglev2;
-
-        if (horizontal) {
-            horizontalLines.push_back(l);
-        } else if (vertical) {
-            verticalLines.push_back(l);
-        }
-    }
-
-    std::vector<Point> points;
-
-    for (Vec2f f : verticalLines ) {
-        double rho1 { f[0] }, theta1 { f[1] };
-
-        for (Vec2f g : horizontalLines) {
-            double rho2 { g[0] }, theta2 { g[1] };
-            double det = std::cos(theta1) * std::sin(theta2) - std::sin(theta1) * std::cos(theta2);
-
-            int
-                x { static_cast<int>((rho1 * std::sin(theta2) - rho2 * std::sin(theta1)) / det) },
-                y { static_cast<int>((rho2 * std::cos(theta1) - rho1 * std::cos(theta2)) / det) };
-
-            bool duplicate {};
-            for (Point p : points) {
-                int dx { p.x - x }, dy { p.y - y };
-                if (dx * dx + dy * dy <= 25 * 25) {
-                    duplicate = true;
-                    break;
-                }
-            }
-
-            if (!duplicate) {
-                points.emplace_back(x, y);
+        for (cv::Vec2f line : lines) {
+            if (CV_PI / 2 - ERROR_ANGLE < line[1] && line[1] < CV_PI / 2 + ERROR_ANGLE ) {
+                horizontalLines.push_back(line);
+            } else if (line[1] < ERROR_ANGLE || line[1] > CV_PI - ERROR_ANGLE) {
+                verticalLines.push_back(line);
             }
         }
-    }
 
-    std::println("{}", points.size());
-    if (points.size() < 40) {
-        // make proper error
-        std::println(stderr, "The camera could not be calibrated properly, please adjust and try again.");
-        return 1;
-    }
+        // Find unique intersection points of the lines.
+        std::vector<cv::Point2f> points;
 
-    bool bordeedBoard { true };
-    int breakout { 9 + bordeedBoard }, rowIncrement { bordeedBoard ? 11 : 9 }; // fewer magic numbers!
+        for (cv::Vec2f f : horizontalLines) {
+            for (cv::Vec2f g : verticalLines) {
+                // No need to normalise since lines are near perpendicular, so scale will be 1 or -1.
+                bool duplicate {};
+                float
+                    x { std::abs(f[0] * std::sin(g[1]) - g[0] * std::sin(f[1])) },
+                    y { std::abs(g[0] * std::cos(f[1]) - f[0] * std::cos(g[1])) };
 
-    std::ranges::sort(points, [](Point p1, Point p2) { return p1.y < p2.y; });
-    for (int y { bordeedBoard }; y < breakout; ++y) {
-        int row { y * rowIncrement }, nextRow { row + rowIncrement };
-        std::sort(points.begin() + row, points.begin() + nextRow, [](Point p1, Point p2) { return p1.x < p2.x; });
-    }
-
-    board::Board chessBoard {};
-
-    // Render
-    // also efficiency?!
-    for (int y { bordeedBoard }; y < breakout; ++y) {
-        int row { y * rowIncrement }, nextRow { row + rowIncrement };
-        for (int x { bordeedBoard }; x < breakout; ++x) {
-            if (x + 1 != breakout && y + 1 != breakout) {
-                Point
-                    tl { points[x + row] },
-                    br { points[x + 1 + nextRow] },
-                    vec { br - tl };
-
-                Rect bounds { tl + vec/4, tl + 3 * vec/4 };
-                Mat square { gray(bounds) }, shapes;
-                GaussianBlur(square, square, { 3, 3 }, 0);
-                Canny(square, shapes, 50, 150);
-
-                std::vector<std::vector<Point>> contours;
-                findContours(shapes, contours, RETR_LIST, CHAIN_APPROX_SIMPLE);
-
-                double length {};
-                for (std::vector<Point>& contour : contours) {
-                    length += arcLength(contour, false);
-
-                    for (Point& p : contour) {
-                        p.x += bounds.x;
-                        p.y += bounds.y;
+                // Check for duplicate points.
+                for (cv::Point2f p : points) {
+                    float dx { p.x - x }, dy { p.y - y };
+                    if (dx * dx + dy * dy <= 25 * 25) { // Each point should be at least 25 pixels away from any other.
+                        duplicate = true;
+                        break;
                     }
                 }
 
-                rectangle(img, { tl, br }, { 0, 255, 0 }, 1);
-
-                chessBoard.white <<= 1;
-                chessBoard.black <<= 1;
-
-                if (length > 50) {
-                    double meanSaturation { mean(hsv(bounds)).val[1] };
-                    bool white { meanSaturation > 75 };
-
-                    if (white) {
-                        chessBoard.white += 1;
-                    } else {
-                        chessBoard.black += 1;
-                    }
-
-                    rectangle(
-                        img,
-                        { tl + vec * 0.1, br - vec * 0.1 },
-                        white ? Scalar { 255, 255, 255 } : Scalar { 0, 0, 0 },
-                        2
-                    );
-
-                    putText(
-                        img,
-                        format("l: %.2f, s: %.2f", length, meanSaturation),
-                        { tl.x, br.y - vec.y / 3 },
-                        FONT_HERSHEY_SIMPLEX,
-                        0.3,
-                        { 0, 255, 255 },
-                        1
-                    );
+                if (!duplicate) {
+                    points.emplace_back(x, y);
                 }
             }
-
-            circle(img, points[x + row], 2, { 0, 0, 255 }, -1);
         }
-    }
 
-    std::println("{} {}", chessBoard.white, chessBoard.black);
+        // Order all the points so that the first is in the top left, second is to the right of it, etc.
+        std::ranges::sort(points, [](cv::Point2f p1, cv::Point2f p2) { return p1.x + p1.y * 100 < p2.x + p2.y * 100;});
 
-    // Write result to file
-    imwrite("output_lines.jpg", img);
+        // Some chessboards have an extra border around the squares, which may get mistaken
+        // as part of the main board, so we need to get rid of these extra points before
+        // generating our squares. If there are more than 9 rows/columns of points we
+        // can ignore the first
+
+        int rowCount { 1 }, colCount { 1 };
+        while (points[colCount - 1].x < points[colCount].x) {
+            colCount++;
+        }
+        while (points[(rowCount - 1) * colCount].y < points[rowCount * colCount].y) {
+            rowCount++;
+        }
+        bool firstCol { colCount > 9 };
+
+        float squareWidth { points[2].x - points[1].x }; // Since at most the first square is invalid but the second is fine.
+        cv::Point2f squareOffset { squareWidth / 8, squareWidth / 8 };
+        cv::Size2f squareSize { squareWidth * 0.75f, squareWidth * 0.75f };
+
+        int i {}, j { rowCount > 9 }, k { firstCol };
+        std::array<cv::Rect2f, 64> squares {};
+        write = raw.clone();
+        while (i < squares.size()) {
+            squares[i++] = { points[j * colCount + k] + squareOffset, squareSize };
+
+            cv::Scalar mean {}, std {};
+            meanStdDev(hsv(squares[i-1]), mean, std);
+            rectangle(write, squares[i-1], { (std.val[1] > 15 && std.val[2] > 15) * 255., 255, 0 }, 2);
+
+            if (++k == 8 + firstCol) {
+                k = firstCol;
+                j++;
+            }
+        }
+    // putText(write, std::format("{:.2f} {:.2f}", mean.val[1], mean.val[2]), squares[i-1].tl() + squareOffset, cv::FONT_HERSHEY_SIMPLEX, 0.2, {0, 255, 255});
+
+    imwrite("post_lines.jpg", write);
+
+    // camera::Board chessBoard {};
+    // chess::Board board {};
+    //
+    // chess::Movelist moves;
+    // chess::movegen::legalmoves(moves, board);
+    // for (chess::Move move : moves) {
+    //     // std::println("{}", chess::uci::moveToUci(move));
+    // }
+    //
+    // // Render
+    // // also efficiency?!
+    // for (int y { borderedBoard }; y < breakout; ++y) {
+    //     int row { y * rowIncrement }, nextRow { row + rowIncrement };
+    //     for (int x { borderedBoard }; x < breakout; ++x) {
+    //         if (x + 1 != breakout && y + 1 != breakout) {
+    //             Point
+    //                 tl { points[x + row] },
+    //                 br { points[x + 1 + nextRow] },
+    //                 vec { br - tl };
+    //
+    //             Rect bounds { tl + vec/8, br - vec/8 };
+    //             Mat square { gray(bounds) }, shapes;
+    //             GaussianBlur(square, square, { 5, 5 }, 0);
+    //             Canny(square, shapes, 100, 150);
+    //
+    //             std::vector<std::vector<Point>> contours;
+    //             findContours(shapes, contours, RETR_LIST, CHAIN_APPROX_SIMPLE);
+    //
+    //             double length {};
+    //             for (std::vector<Point>& contour : contours) {
+    //                 length += arcLength(contour, false);
+    //
+    //                 for (Point& p : contour) {
+    //                     p.x += bounds.tl().x;
+    //                     p.y += bounds.tl().y;
+    //                 }
+    //             }
+    //
+    //             chessBoard.white <<= 1;
+    //             chessBoard.black <<= 1;
+    //
+    //             std::array<double, 4> mu {}, sigma2 {};
+    //             meanStdDev(hsv(bounds), mu, sigma2);
+    //
+    //             if (sigma2[1] > 10 && length > 50) {
+    //                 std::println("{} {}", mu, sigma2);
+    //                 bool white { mu[1] > 70 };
+    //
+    //                 if (white) {
+    //                     chessBoard.white += 1;
+    //                 } else {
+    //                     chessBoard.black += 1;
+    //                 }
+    //
+    //                 rectangle(
+    //                     img,
+    //                     bounds,
+    //                     white ? Scalar { 255, 255, 255 } : Scalar { 0, 0, 0 },
+    //                     2
+    //                 );
+    //
+    //                 drawContours(img, contours, -1, {0, 0, 255});
+    //
+    //                 putText(
+    //                     img,
+    //                     format("l: %.2f, s: %.2f", length, mu[1]),
+    //                     { tl.x, br.y - vec.y / 3 },
+    //                     FONT_HERSHEY_SIMPLEX,
+    //                     0.3,
+    //                     { 0, 255, 255 },
+    //                     1
+    //                 );
+    //             }
+    //         }
+    //     }
+    // }
+    //
+    // // Write result to file
+    // imwrite("post_lines.jpg", img);
 
     // Check past frame and current one, classify squares based on obscured and empty (check colour consistency?)
     // and compare between frames - will need some way of checking in case of promotions - perhaps keep track of
@@ -207,15 +218,6 @@ int main(int argc, char* argv[]) {
     }
 
     std::string line, token;
-
-    /* Get whether the board has a distinct border or not. */
-
-    if (!std::getline(config, line)) {
-        std::println(stderr, "Unexpected configuration file end.");
-        return 1;
-    }
-
-    bool borderedBoard { line == "y" };
 
     /* Get stream configuration. */
 
@@ -277,7 +279,7 @@ int main(int argc, char* argv[]) {
     /* Configure and start the robot, vision, and streaming threads. */
 
     Arm robot { joints, wristSize };
-    Camera cam { &robot };
+    Camera cam { &robot, true }; // TODO input perspective
 
     std::thread arm { &Arm::follow, &robot };
     std::thread vision { &Camera::loop, &cam };

@@ -35,6 +35,7 @@ ninja
 - [OpenCV](https://opencv.org)
 - [Doctest](https://github.com/doctest/doctest)
 - [easywsclient](https://github.com/dhbaird/easywsclient)
+- [chess-library](https://github.com/Disservin/chess-library) (converted to a `.cppm` module)
 
 ##### JavaScript
 
@@ -47,8 +48,11 @@ TODO:
 - dispatch angles
 - path, camera, streamer, arm, board, main tests
 - Collision detection
-- Camera integration (calibration - map to irl coords, checkpoint generation, etc.)
+- Camera integration (calibration (controlled lighting) - map to irl coords, checkpoint generation, etc.)
 - user verification of correct camera calibration at start?
 - Documentation (overview of system architecture, etc.)
 - Webserver test js
 - Stop checkpoint generation from quat
+
+- Commenting
+- Consider difference between white and black perspective

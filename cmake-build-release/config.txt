@@ -1,4 +1,3 @@
-y
 ws://localhost;very-secure-password;15
 0
 X;1.24;Y

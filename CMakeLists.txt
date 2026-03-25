@@ -11,7 +11,7 @@ if (PC_BUILD)
     add_compile_definitions(PIPELINE=0)
 else (PC_BUILD)
     add_compile_definitions("PIPELINE=\"libcamerasrc ! videoconvert ! \" \
-                                      \"video/x-raw,format=BGR888,width=640,height=480 ! \" \
+                                      \"video/x-raw,format=BGR888,width=480,height=480 ! \" \
                                       \"appsink sync=false drop=true max-buffers=1\"")
 endif (PC_BUILD)
 
@@ -34,6 +34,7 @@ target_sources(chess_arm
         lib/arm.cppm
         lib/camera.cppm
         lib/streamer.cppm
+        lib/chess_library.cppm
         lib/board.cppm
 )
 
