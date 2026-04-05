@@ -37,7 +37,7 @@ namespace arm {
             result.push_back(joint.angle);
         }
 
-        // dispatch angles
+        // TODO dispatch angles
     }
 
     /* Forward kinematics. */
@@ -103,65 +103,30 @@ namespace arm {
 
     /* Path following. */
 
-    void Arm::addCheckpoint(const Checkpoint& checkpoint, bool shouldResume) {
+    // Add a checkpoint to the queue.
+    void Arm::addCheckpoint(const Checkpoint& checkpoint) {
         {
             std::lock_guard lock { armMutex };
             checkpoints.push_back(checkpoint);
-        } // unlocks before resuming path follower.
-
-        if (shouldResume && pathFlag.load() != PathFlag::Moving) {
-            resume();
         }
-    }
 
-    // Pause or fully stop the arm's motion if a halt command has not already been
-    // given. Note that an arm can be stopped again on its way to a safety orientation.
-    void Arm::stop(Quaternion safety, bool abort) {
-        if (pathFlag.load() != PathFlag::Halt) {
-            std::lock_guard lock { armMutex };
-
-            if (abort) {
-                checkpoints.clear();
-            }
-
-            // Set it up so that the next path brings the arm to the safe orientation.
-            Orientation currentOrientation { locateEndEffector() };
-            //checkpoints.emplace_front(safety, 0);
-            //checkpoints.emplace_front(currentOrientation, currentSpeed);
-
-            pathFlag.store(PathFlag::Halt);
+        if (!moving) {
+            moving = true;
+            flagCondition.notify_one();
         }
-    }
-
-    // Stop but calculate an appropriate safety orientation.
-    void Arm::stop(bool abort) {
-        Quaternion safety { vector(0, 0, 0) }; // Calculate properly.
-        stop(safety, abort);
-    }
-
-    void Arm::resume() {
-        pathFlag.store(PathFlag::Moving);
-        flagCondition.notify_one();
     }
 
     Path Arm::createPath() {
         std::unique_lock lock { armMutex };
 
-        // Stop if we run out of new checkpoints (first is current position) or have been made to stop.
-        if (checkpoints.size() == 1 || pathFlag.load() == PathFlag::Stopped) {
-            pathFlag.store(PathFlag::Stopped);
-
-            // Block until we are given the go ahead.
-            flagCondition.wait(lock, [&] -> bool { return pathFlag.load() == PathFlag::Moving; });
+        // Stop if we run out of new checkpoints (first is current position) until allowed to move..
+        if (checkpoints.size() == 1) {
+            moving = false;
+            flagCondition.wait(lock, [&] -> bool { return moving; });
         }
 
         Checkpoint current { checkpoints.front() };
         checkpoints.pop_front();
-
-        // The arm will now move to the safety point and then stop on the next call of this function.
-        if (pathFlag.load() == PathFlag::Halt) {
-            pathFlag.store(PathFlag::Stopped);
-        }
 
         return { current, checkpoints.front() };
     }
@@ -172,8 +137,8 @@ namespace arm {
         while (true) {
             Path path { createPath() };
             auto startTime = high_resolution_clock::now();
-            float t {};
 
+            float t {};
             while (t < 1) {
                 ccdTo(path(t));
                 dispatchAngles();
@@ -181,22 +146,12 @@ namespace arm {
                 t = static_cast<float>(duration_cast<milliseconds>(high_resolution_clock::now() - startTime).count()) / path.duration;
 
                 std::unique_lock lock { armMutex };
-                flagCondition.wait_for(lock, milliseconds(delay_ms), [&] -> bool {
-                    // If we are told to halt, wake up and exit the while loop to go to the safety checkpoint.
-                    if (pathFlag.load() == PathFlag::Halt) {
-                        t = 1;
-                        return true;
-                    }
-
-                    return false; // Otherwise wait till we can move again.
-                });
+                flagCondition.wait_for(lock, milliseconds(delay_ms), [] -> bool { return false; });
             }
 
-            if (pathFlag.load() != PathFlag::Halt) { // To stop going to the original path's endpoint.
-                // Since the last t used will be less than 1, we need this final correction.
-                ccdTo(path(1));
-                dispatchAngles();
-            }
+            // Final correction since t < 1, but path ends at t = 1.
+            ccdTo(path(1));
+            dispatchAngles();
         }
     }
 }

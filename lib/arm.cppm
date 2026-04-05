@@ -24,8 +24,6 @@ export namespace arm {
     };
 
     class Arm {
-        enum class PathFlag { Stopped, Halt, Moving };
-
         std::vector<Joint> joints;
         size_t wristSize;
         unsigned int delay_ms;
@@ -34,7 +32,6 @@ export namespace arm {
 
         std::mutex armMutex;
         std::condition_variable flagCondition;
-        std::atomic<PathFlag> pathFlag { PathFlag::Stopped };
         std::deque<Checkpoint> checkpoints;
 
         void dispatchAngles() const;
@@ -44,14 +41,13 @@ export namespace arm {
             Arm(const std::vector<Joint>& joints, size_t wristSize, unsigned int delay_ms = 5,
                 float granularity = 0.001, const Orientation &base = ORIGIN);
 
+            std::atomic_bool moving {};
+
             Orientation locateEndEffector() const;
             float errorTo(const Orientation& target) const;
             void ccdTo(const Orientation& target);
 
-            void addCheckpoint(const Checkpoint& checkpoint, bool shouldResume);
-            void stop(Quaternion safety, bool abort);
-            void stop(bool abort);
-            void resume();
+            void addCheckpoint(const Checkpoint& checkpoint);
             [[noreturn]] void follow();
     };
 }

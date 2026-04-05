@@ -49,11 +49,12 @@ namespace streamer {
                         std::array<float, 5> floats {};
                         std::memcpy(floats.data(), message.data(), message.size()); // Convert bytes to floats.
 
-                        if (floats[3] == 0) {
-                            cam->robot->stop(quaternion::vector(floats[0], floats[1], floats[2]), floats[4] == 1);
-                        } else { // If requested to automatically calculate the stop target.
-                            cam->robot->stop(floats[4] == 1);
-                        }
+                        // TODO remove emergency stops
+                        // if (floats[3] == 0) {
+                        //     cam->robot->stop(quaternion::vector(floats[0], floats[1], floats[2]), floats[4] == 1);
+                        // } else { // If requested to automatically calculate the stop target.
+                        //     cam->robot->stop(floats[4] == 1);
+                        // }
                     });
 
                     std::lock_guard lock { cam->cameraMutex }; // Lock so camera doesn't change buffer.

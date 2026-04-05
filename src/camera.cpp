@@ -1,7 +1,9 @@
 module;
 
+#include <chrono>
 #include <mutex>
 #include <ranges>
+#include <thread>
 
 #include <opencv2/opencv.hpp>
 
@@ -9,10 +11,23 @@ module;
 module camera;
 
 import arm;
-import board;
 
 namespace camera {
+    // Convert a piece type into a character to draw.
+    std::string pieceToString(chess::Piece piece) {
+        switch (piece.type()) {
+            case 0: return piece.color() == chess::Color::WHITE ? "P" : "p"; // Pawn
+            case 1: return piece.color() == chess::Color::WHITE ? "N" : "n"; // Knight
+            case 2: return piece.color() == chess::Color::WHITE ? "B" : "b"; // Bishop
+            case 3: return piece.color() == chess::Color::WHITE ? "R" : "r"; // Rook
+            case 4: return piece.color() == chess::Color::WHITE ? "Q" : "q"; // Queen
+            case 5: return piece.color() == chess::Color::WHITE ? "K" : "k"; // King
+            default: return " "; // Empty
+        }
+    }
+
     // Detect the grid on a chess board set to the starting position.
+    // Ensure MINIMAL SHADOWS and center the pieces in their squares!!
     bool Camera::configure() {
         if (!camera.read(raw)) {
             std::println(stderr, "Configuration failed because the camera could not capture an image.");
@@ -56,8 +71,10 @@ namespace camera {
 
                 // Check for duplicate points.
                 for (cv::Point2f p : points) {
+                    constexpr int SQ_POINT_SEPARATION { 25 * 25 };
                     float dx { p.x - x }, dy { p.y - y };
-                    if (dx * dx + dy * dy <= 25 * 25) { // Each point should be at least 25 pixels away from any other.
+
+                    if (dx * dx + dy * dy <= SQ_POINT_SEPARATION) { // Each point should be at least 25 pixels away from any other.
                         duplicate = true;
                         break;
                     }
@@ -67,6 +84,11 @@ namespace camera {
                     points.emplace_back(x, y);
                 }
             }
+        }
+
+        if (points.size() < 81) {
+            std::println(stderr, "Configuration failed because only {}/81 points detected.", points.size());
+            return false;
         }
 
         // Order all the points so that the first is in the top left, second is to the right of it, etc.
@@ -84,39 +106,39 @@ namespace camera {
         while (points[(rowCount - 1) * colCount].y < points[rowCount * colCount].y) {
             rowCount++;
         }
+
         bool firstCol { colCount > 9 };
-
-        float squareWidth { points[2].x - points[1].x }; // Since at most the first square is invalid but the second is fine.
-        cv::Point2f squareOffset { squareWidth / 8, squareWidth / 8 };
-        cv::Size2f squareSize { squareWidth * 0.75f, squareWidth * 0.75f };
-
-        int i {}, j { rowCount > 9 }, k { firstCol };
+        int i {}, j { 7 + (rowCount > 9) }, k { firstCol };
 
         while (i < squares.size()) {
-            squares[i++] = { points[j * colCount + k] + squareOffset, squareSize };
+            cv::Point2f tl { points[j * colCount + k] }, br { points[(j + 1) * colCount + k + 1] }, vec { (br - tl) * 0.2 };
+            squares[i++] = { tl + vec, br - vec };
 
             if (++k == 8 + firstCol) {
                 k = firstCol;
-                j++;
+                j--;
             }
         }
 
-        board::Board startBoard { processRaw() };
-        if (board::validateChange(currentBoard, startBoard, true) == board::ChangeType::VALID) {
-            currentBoard = startBoard;
-        } else {
-            std::println(stderr, "Configuration failed because the board is not in the starting position.");
-            return false;
+        if (std::pair bitboard { processRaw() }; bitboard == STARTING_BOARD) {
+            std::string engineMove { chessEngine.getMove("") };
+            board.makeMove(chess::pgn::uci::uciToMove(board, engineMove));
+            generateCheckpoints(engineMove);
+            return true;
+        } else if (bitboard == FLIPPED_STARTING_BOARD) {
+            std::ranges::reverse(squares);
+            return true;
         }
 
-        return true;
+        std::println(stderr, "Configuration failed because the board is not in the starting position.");
+        return false;
     }
 
     // Take an image and detect the squares taken up by white
     // and black pieces, returning a bitboard representation.
-    board::Board Camera::processRaw() {
+    std::pair<uint64_t, uint64_t> Camera::processRaw() {
         if (!camera.read(raw)) {
-            return board::EMPTY_BOARD;
+            return {};
         }
 
         frame = raw.clone();
@@ -124,34 +146,75 @@ namespace camera {
         cv::Mat hsv;
         cv::cvtColor(raw, hsv, cv::COLOR_BGR2HSV);
         cv::Scalar mean {}, std {};
-        board::Board newBoard {};
+        std::pair<uint64_t, uint64_t> bitboard {}; // first is for white pieces, second is for black
 
-        for (int i {}; i < squares.size(); ++i) {
-            cv::meanStdDev(hsv(squares[whitesPerspective ? i : squares.size() - i - 1]), mean, std);
+        for (int rank { 7 }; rank >= 0; --rank) {
+            for (int file { 7 }; file >= 0 ; --file) {
+                int square { rank * 8 + file }, colour {};
+                constexpr double OCCUPIED_THRESHOLD { 25 }, WB_THRESHOLD { 85 };
 
-            newBoard.white <<= 1;
-            newBoard.black <<= 1;
+                bitboard.first <<= 1;
+                bitboard.second <<= 1;
 
-            int colour {};
+                cv::meanStdDev(hsv(squares[square]), mean, std);
 
-            if (std.val[1] > 15 && std.val[2] > 15) {
-                if (true) {
-                    newBoard.white++;
-                    colour = 1;
-                } else {
-                    newBoard.black++;
-                    colour = -1;
+                if (std.val[2] > OCCUPIED_THRESHOLD) {
+                    if ((mean.val[0] + mean.val[1] + mean.val[2]) / 3 > WB_THRESHOLD) {
+                        bitboard.first++;
+                        colour = 1;
+                    } else {
+                        bitboard.second++;
+                        colour = -1;
+                    }
                 }
-            }
 
-            rectangle(frame, squares[i-1], !colour ? GREEN : colour == 1 ? WHITE : BLACK, 2);
+                rectangle(frame, squares[square], !colour ? BLUE : colour == 1 ? WHITE : BLACK, 2);
+                putText(
+                    frame,
+                    pieceToString(board.at({ square })),
+                    squares[square].tl() * 0.67 + squares[square].br() * 0.33,
+                    cv::FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    GREEN
+                );
+            }
         }
 
-        return newBoard;
+        return bitboard;
     }
 
-    void Camera::generateCheckpoints() {
+    std::string Camera::checkChange(const std::pair<uint64_t, uint64_t>& newBitboard) {
+        if (board.us(chess::Color::WHITE).getBits() == newBitboard.first && board.us(chess::Color::BLACK).getBits() == newBitboard.second) {
+            return "N"; // No change
+        }
 
+        chess::Movelist moves;
+        chess::movegen::legalmoves(moves, board);
+
+        for (const chess::Move move : moves) {
+            // This line implements the auto queen rule (simplifies user interface and
+            // makes vision more robust with little loss of game functionality, since
+            // promotions are almost always made to a queen).
+            if (move.typeOf() == chess::Move::PROMOTION && move.promotionType() != chess::PieceType::QUEEN) {
+                continue;
+            }
+
+            board.makeMove(move);
+
+            if (board.us(chess::Color::WHITE).getBits() == newBitboard.first && board.us(chess::Color::BLACK).getBits() == newBitboard.second) {
+                return chess::pgn::uci::moveToUci(move); // Return the move that was made.
+            }
+
+            board.unmakeMove(move);
+        }
+
+        return "I"; // Invalid change
+    }
+
+    // Converts a given chess move into targets to move
+    // the robot arm to, and enqueues these targets.
+    void Camera::generateCheckpoints(std::string move) {
+        // TODO
     }
 
     // For streaming purposes.
@@ -162,13 +225,40 @@ namespace camera {
         }
     }
 
+    // The main loop of the camera which processes captured
+    // images, generates moves, and commands the arm.
     [[noreturn]] void Camera::loop() {
-        // configure??
+        do {
+            std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        } while (!configure());
+
         while (true) {
-            // captire first
-            processRaw();
-            generateCheckpoints();
+            if (!robot->moving) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                continue;
+            }
+
+            switch (std::string move { checkChange(processRaw()) }; move[0]) {
+                case 'I': // TODO communicate error to server...
+                    std::println(stderr, "Invalid board position detected.");
+                    break;
+                case 'N':
+                    break;
+                default:
+                    if (board.isGameOver().second == chess::GameResult::NONE) {
+                        std::string engineMove { chessEngine.getMove(move) };
+                        board.makeMove(chess::pgn::uci::uciToMove(board, engineMove));
+                        generateCheckpoints(engineMove);
+                    }
+
+                    break;
+            }
+
             encodeFrame();
+
+            if (board.isGameOver().second != chess::GameResult::NONE) {
+                break; // TODO notify end and colour won/draw?
+            }
         }
     }
 }

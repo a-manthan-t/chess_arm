@@ -46,15 +46,12 @@ ninja
 - [ws](https://www.npmjs.com/package/ws)
 
 TODO:
-- consider max and min angles for servos and torque limits
+- consider max and min angles for servos and torque limits?
 - dispatch angles
-- path, camera, streamer, arm, board, main tests
-- Collision detection
-- Camera integration (calibration (controlled lighting) - map to irl coords, checkpoint generation, etc.)
-- user verification of correct camera calibration at start?
+- path, camera, streamer, arm, board, main, engine tests
+- Camera integration (map to irl coords, checkpoint generation, etc.)
 - Documentation (overview of system architecture, etc.)
 - Webserver test js
-- Stop checkpoint generation from quat
+- No emergency stops (server side needs some redoing)
 
 - Commenting
-- Consider difference between white and black perspective
