@@ -11,6 +11,8 @@ module;
 module camera;
 
 import arm;
+import path;
+import quaternion;
 
 namespace camera {
     // Convert a piece type into a character to draw.
@@ -121,9 +123,10 @@ namespace camera {
         }
 
         if (std::pair bitboard { processRaw() }; bitboard == STARTING_BOARD) {
-            std::string engineMove { chessEngine.getMove("") };
-            board.makeMove(chess::pgn::uci::uciToMove(board, engineMove));
-            generateCheckpoints(engineMove);
+            std::string uci { chessEngine.getMove("") };
+            board.makeMove(chess::pgn::uci::uciToMove(board, uci));
+            whitesPerspective = true;
+            generateCheckpoints(uci, chess::Move::NORMAL);
             return true;
         } else if (bitboard == FLIPPED_STARTING_BOARD) {
             std::ranges::reverse(squares);
@@ -213,8 +216,123 @@ namespace camera {
 
     // Converts a given chess move into targets to move
     // the robot arm to, and enqueues these targets.
-    void Camera::generateCheckpoints(std::string move) {
-        // TODO
+    void Camera::generateCheckpoints(const std::string &move, MoveType moveType) const {
+        std::array<int, 2>
+            sourceSquare { move[0] - 'a', move[1] - '1' },
+            targetSquare { move[2] - 'a', move[3] - '1' };
+
+        if (!whitesPerspective) {
+            sourceSquare = { 7 - sourceSquare[0], 7 - sourceSquare[1] };
+            targetSquare = { 7 - targetSquare[0], 7 - targetSquare[1] };
+        }
+
+        path::Checkpoint
+            start { robot->getLatestCheckpoint() },
+            above {
+                {
+                    quaternion::vector((targetSquare[0] + 0.5) * squareWidth, (targetSquare[1] + 0.5) * squareWidth, 2 * squareWidth),
+                    quaternion::rotation(1, 1, 1) // TODO
+                }, 2
+            },
+            grabLevel {
+                {
+                    above.orientation.position - quaternion::vector(0, 0, -1.5 * squareWidth),
+                    quaternion::rotation(1, 1, 1) // TODO
+                }, 0
+            },
+            dump {
+                {
+                    quaternion::vector(-squareWidth, squareWidth * 4, 0.5),
+                    quaternion::rotation(1, 1, 1)
+                }, 0
+            };
+
+        switch (moveType) {
+            case chess::Move::PROMOTION:  // TODO alert replacement with queen?
+            case chess::Move::NORMAL: {
+                if (board.occ().check(targetSquare[0] + targetSquare[1] * 8)) {
+                    robot->addCheckpoint(above);
+                    robot->addCheckpoint(grabLevel);
+                    robot->addCheckpoint(grabLevel); // same checkpoint twice means toggle grip
+                    robot->addCheckpoint(above);
+                    robot->addCheckpoint(dump);
+                    robot->addCheckpoint(dump);
+                }
+                break;
+            }
+            case chess::Move::ENPASSANT: {
+                path::Checkpoint
+                    pawnAbove {
+                        {
+                            quaternion::vector((targetSquare[0] + 0.5) * squareWidth, (targetSquare[1] - 0.5) * squareWidth, 2 * squareWidth),
+                            quaternion::rotation(1, 1, 1) // TODO
+                        }, 2
+                    },
+                    pawnGrab {
+                        {
+                            pawnAbove.orientation.position - quaternion::vector(0, 0, -1.5 * squareWidth),
+                            quaternion::rotation(1, 1, 1) // TODO
+                        }, 0
+                    };
+
+                robot->addCheckpoint(pawnAbove);
+                robot->addCheckpoint(pawnGrab);
+                robot->addCheckpoint(pawnGrab);
+                robot->addCheckpoint(pawnAbove);
+                robot->addCheckpoint(dump);
+                robot->addCheckpoint(dump);
+                break;
+            }
+            case chess::Move::CASTLING: {
+                int
+                    rookX { targetSquare[0] < 4 ? 0 : 7 },
+                    rookTX { targetSquare[0] < 4 ? targetSquare[0] + 1 : targetSquare[0] - 1 };
+
+                path::Checkpoint
+                    rookAbove {
+                        {
+                            quaternion::vector((rookX + 0.5) * squareWidth, (targetSquare[1] - 0.5) * squareWidth, 2 * squareWidth),
+                            quaternion::rotation(1, 1, 1) // TODO
+                        }, 2
+                    },
+                    rookGrab {
+                        {
+                            rookAbove.orientation.position - quaternion::vector(0, 0, -1.5 * squareWidth),
+                            quaternion::rotation(1, 1, 1) // TODO
+                        }, 0
+                    },
+                    rookDropAbove {
+                        {
+                            quaternion::vector((rookTX + 0.5) * squareWidth, (targetSquare[1] - 0.5) * squareWidth, 2 * squareWidth),
+                            quaternion::rotation(1, 1, 1) // TODO
+                        }, 2
+                    },
+                    rookDropGrab {
+                        {
+                            rookDropAbove.orientation.position - quaternion::vector(0, 0, -1.5 * squareWidth),
+                            quaternion::rotation(1, 1, 1) // TODO
+                        }, 0
+                    };
+
+                robot->addCheckpoint(rookAbove);
+                robot->addCheckpoint(rookGrab);
+                robot->addCheckpoint(rookGrab);
+                robot->addCheckpoint(rookAbove);
+                robot->addCheckpoint(rookDropAbove);
+                robot->addCheckpoint(rookDropGrab);
+                robot->addCheckpoint(rookDropGrab);
+                robot->addCheckpoint(rookDropAbove);
+                break;
+            }
+            default: std::println(stderr, "Invalid move type received: {}", move); // Should not happen.
+        }
+
+        robot->addCheckpoint(above);
+        robot->addCheckpoint(grabLevel);
+        robot->addCheckpoint(grabLevel);
+        robot->addCheckpoint(above);
+        robot->addCheckpoint(start);
+        robot->addCheckpoint(start);
     }
 
     // For streaming purposes.
@@ -246,9 +364,10 @@ namespace camera {
                     break;
                 default:
                     if (board.isGameOver().second == chess::GameResult::NONE) {
-                        std::string engineMove { chessEngine.getMove(move) };
-                        board.makeMove(chess::pgn::uci::uciToMove(board, engineMove));
-                        generateCheckpoints(engineMove);
+                        std::string uci { chessEngine.getMove(move) };
+                        chess::Move engineMove { chess::pgn::uci::uciToMove(board, uci) };
+                        board.makeMove(engineMove);
+                        generateCheckpoints(uci, engineMove.typeOf());
                     }
 
                     break;

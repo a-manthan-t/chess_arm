@@ -14,6 +14,12 @@ import quaternion;
 namespace path {
     using namespace quaternion;
 
+    bool operator==(const Checkpoint& c, const Checkpoint& d) {
+        return c.orientation.position == d.orientation.position
+            && c.orientation.rotation == d.orientation.rotation
+            && c.speed == d.speed;
+    }
+
     // Where segments is the number of segments the path should be broken into
     // for calculating its length.
     Path::Path(const Checkpoint& start, const Checkpoint& target, unsigned int segments)

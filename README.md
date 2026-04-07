@@ -46,12 +46,13 @@ ninja
 - [ws](https://www.npmjs.com/package/ws)
 
 TODO:
-- consider max and min angles for servos and torque limits?
-- dispatch angles
-- path, camera, streamer, arm, board, main, engine tests
-- Camera integration (map to irl coords, checkpoint generation, etc.)
-- Documentation (overview of system architecture, etc.)
-- Webserver test js
-- No emergency stops (server side needs some redoing)
+- Notifications to server
+- Dispatch angles (i.e., communication with server)
+- Generate target rotations
+- Toggle grab
 
-- Commenting
+
+- Webserver fix (remove emergency stops, etc.)
+- Tests and any remaining documentation (including for webserver)
+- Ensure unit consistency and prepare config file
+- Robot side code

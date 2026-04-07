@@ -23,7 +23,7 @@ namespace arm {
     using namespace path;
     using namespace quaternion;
 
-    Arm::Arm(const std::vector<Joint>& joints, size_t wristSize, unsigned int delay_ms, float granularity, const Orientation& base)
+    Arm::Arm(const std::vector<Joint>& joints, size_t wristSize, const Orientation& base, unsigned int delay_ms, float granularity)
         : joints(joints), wristSize(wristSize), delay_ms(delay_ms), granularity(granularity), base(base) {
         checkpoints.emplace_front(locateEndEffector(), 0);
     }
@@ -116,10 +116,18 @@ namespace arm {
         }
     }
 
+    // Get latest checkpoint.
+    Checkpoint Arm::getLatestCheckpoint() {
+        std::lock_guard lock { armMutex };
+        return checkpoints.front();
+    }
+
+    // Craft a path using the next two checkpoints.
     Path Arm::createPath() {
         std::unique_lock lock { armMutex };
 
-        // Stop if we run out of new checkpoints (first is current position) until allowed to move..
+        // Stop if we run out of new checkpoints (first is current position) until allowed to move.
+        createCheckpoint:
         if (checkpoints.size() == 1) {
             moving = false;
             flagCondition.wait(lock, [&] -> bool { return moving; });
@@ -128,9 +136,15 @@ namespace arm {
         Checkpoint current { checkpoints.front() };
         checkpoints.pop_front();
 
+        if (current == checkpoints.front()) {
+            // TODO toggle grip
+            goto createCheckpoint;
+        }
+
         return { current, checkpoints.front() };
     }
 
+    // Generate paths based on the queue of checkpoints and set the arm along those paths.
     [[noreturn]] void Arm::follow() {
         using namespace std::chrono;
 

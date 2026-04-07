@@ -34,20 +34,21 @@ export namespace arm {
         std::condition_variable flagCondition;
         std::deque<Checkpoint> checkpoints;
 
+        Orientation locateEndEffector() const;
+        float errorTo(const Orientation& target) const;
+        void ccdTo(const Orientation& target);
+
         void dispatchAngles() const;
         Path createPath();
 
         public:
-            Arm(const std::vector<Joint>& joints, size_t wristSize, unsigned int delay_ms = 5,
-                float granularity = 0.001, const Orientation &base = ORIGIN);
+            Arm(const std::vector<Joint>& joints, size_t wristSize, const Orientation &base = ORIGIN, unsigned int delay_ms = 5,
+                float granularity = 0.001);
 
             std::atomic_bool moving {};
 
-            Orientation locateEndEffector() const;
-            float errorTo(const Orientation& target) const;
-            void ccdTo(const Orientation& target);
-
             void addCheckpoint(const Checkpoint& checkpoint);
+            Checkpoint Arm::getLatestCheckpoint();
             [[noreturn]] void follow();
     };
 }

@@ -12,6 +12,8 @@ export namespace path {
         Checkpoint(const Orientation& orientation, float speed) : orientation(orientation), speed(speed) {}
     };
 
+    bool operator==(const Checkpoint& c, const Checkpoint& d);
+
     struct Path {
         Checkpoint start, target;
         Quaternion control1 { ZERO }, control2 { ZERO };

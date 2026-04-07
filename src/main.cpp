@@ -212,10 +212,10 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    std::istringstream lineStream { line };
+    std::istringstream lineStream1 { line };
     std::vector<std::string> streamConfig;
 
-    while (std::getline(lineStream, token, ';')) {
+    while (std::getline(lineStream1, token, ';')) {
         streamConfig.push_back(token);
     }
 
@@ -234,6 +234,31 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    /* Set up board offset and square width relative to robot. */
+
+    if (!std::getline(config, line)) {
+        std::println(stderr, "Unexpected configuration file end.");
+        return 1;
+    }
+
+    std::istringstream lineStream2 { line };
+    std::array<float, 4> boardConfig {};
+    int nEntries {};
+
+    while (std::getline(lineStream2, token, ';') && nEntries < 4) {
+        auto [_, err] = std::from_chars(token.data(), token.data() + line.length(), boardConfig[nEntries++]);
+
+        if (err != std::errc {}) {
+            std::println(stderr, "Could not parse board config.");
+            return 1;
+        }
+    }
+
+    if (nEntries < 4) {
+        std::println(stderr, "Incomplete board config provided.");
+        return 1;
+    }
+
     /* Get the descriptions of each joint in the arm. */
 
     std::vector<Joint> joints;
@@ -245,7 +270,7 @@ int main(int argc, char* argv[]) {
         }
 
         float segmentLength;
-        auto [_, err] = std::from_chars(line.data() + 2, line.data() + line.size() - 2, segmentLength);
+        auto [_, err] = std::from_chars(line.data() + 2, line.data() + line.length() - 2, segmentLength);
 
         if (err != std::errc {}) {
             std::println(stderr, "Could not parse joints.");
@@ -264,8 +289,8 @@ int main(int argc, char* argv[]) {
 
     /* Configure and start the robot, vision, and streaming threads. */
 
-    Arm robot { joints, wristSize };
-    Camera cam { &robot, { argv[2] } }; // TODO restart camera on game end to reset, and have a start game mechanism.
+    Arm robot { joints, wristSize, { vector(boardConfig[0], boardConfig[1], boardConfig[2]), IDENTITY } };
+    Camera cam { &robot, { argv[2] }, boardConfig[3] }; // TODO restart camera on game end to reset, and have a start game mechanism.
 
     std::thread arm { &Arm::follow, &robot };
     std::thread vision { &Camera::loop, &cam };
