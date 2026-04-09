@@ -196,6 +196,11 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    if (argc < 4) {
+        std::println(stderr, "Please provide a USB device for the robot.");
+        return 1;
+    }
+
     std::ifstream config { argv[1] };
 
     if (!config) {

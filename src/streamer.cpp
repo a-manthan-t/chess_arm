@@ -42,21 +42,6 @@ namespace streamer {
 
                 while (ws->getReadyState() != WebSocket::CLOSED) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(tpf));
-
-                    // // Intercept emergency stop commands.
-                    // ws->poll();
-                    // ws->dispatchBinary([cam](const std::vector<unsigned char>& message) {
-                    //     std::array<float, 5> floats {};
-                    //     std::memcpy(floats.data(), message.data(), message.size()); // Convert bytes to floats.
-                    //
-                    //     // TODO remove emergency stops
-                    //     // if (floats[3] == 0) {
-                    //     //     cam->robot->stop(quaternion::vector(floats[0], floats[1], floats[2]), floats[4] == 1);
-                    //     // } else { // If requested to automatically calculate the stop target.
-                    //     //     cam->robot->stop(floats[4] == 1);
-                    //     // }
-                    // });
-
                     std::lock_guard lock { cam->cameraMutex }; // Lock so camera doesn't change buffer.
                     ws->sendBinary(cam->buffer);
                 }

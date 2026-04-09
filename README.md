@@ -47,7 +47,6 @@ ninja
 
 TODO:
 - Notifications to server
-- Dispatch angles (i.e., communication with server)
 - Generate target rotations
 - Toggle grab
 

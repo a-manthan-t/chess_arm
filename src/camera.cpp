@@ -231,19 +231,19 @@ namespace camera {
             above {
                 {
                     quaternion::vector((targetSquare[0] + 0.5) * squareWidth, (targetSquare[1] + 0.5) * squareWidth, 2 * squareWidth),
-                    quaternion::rotation(1, 1, 1) // TODO
+                    quaternion::rotation(0, 1, 1) // TODO
                 }, 2
             },
             grabLevel {
                 {
                     above.orientation.position - quaternion::vector(0, 0, -1.5 * squareWidth),
-                    quaternion::rotation(1, 1, 1) // TODO
+                    quaternion::rotation(0, 1, 1) // TODO
                 }, 0
             },
             dump {
                 {
                     quaternion::vector(-squareWidth, squareWidth * 4, 0.5),
-                    quaternion::rotation(1, 1, 1)
+                    quaternion::rotation(0, 1, 1) // TODO
                 }, 0
             };
 
@@ -265,13 +265,13 @@ namespace camera {
                     pawnAbove {
                         {
                             quaternion::vector((targetSquare[0] + 0.5) * squareWidth, (targetSquare[1] - 0.5) * squareWidth, 2 * squareWidth),
-                            quaternion::rotation(1, 1, 1) // TODO
+                            quaternion::rotation(0, 1, 1) // TODO
                         }, 2
                     },
                     pawnGrab {
                         {
                             pawnAbove.orientation.position - quaternion::vector(0, 0, -1.5 * squareWidth),
-                            quaternion::rotation(1, 1, 1) // TODO
+                            quaternion::rotation(0, 1, 1) // TODO
                         }, 0
                     };
 
@@ -292,25 +292,25 @@ namespace camera {
                     rookAbove {
                         {
                             quaternion::vector((rookX + 0.5) * squareWidth, (targetSquare[1] - 0.5) * squareWidth, 2 * squareWidth),
-                            quaternion::rotation(1, 1, 1) // TODO
+                            quaternion::rotation(0, 1, 1) // TODO
                         }, 2
                     },
                     rookGrab {
                         {
                             rookAbove.orientation.position - quaternion::vector(0, 0, -1.5 * squareWidth),
-                            quaternion::rotation(1, 1, 1) // TODO
+                            quaternion::rotation(0, 1, 1) // TODO
                         }, 0
                     },
                     rookDropAbove {
                         {
                             quaternion::vector((rookTX + 0.5) * squareWidth, (targetSquare[1] - 0.5) * squareWidth, 2 * squareWidth),
-                            quaternion::rotation(1, 1, 1) // TODO
+                            quaternion::rotation(0, 1, 1) // TODO
                         }, 2
                     },
                     rookDropGrab {
                         {
                             rookDropAbove.orientation.position - quaternion::vector(0, 0, -1.5 * squareWidth),
-                            quaternion::rotation(1, 1, 1) // TODO
+                            quaternion::rotation(0, 1, 1) // TODO
                         }, 0
                     };
 

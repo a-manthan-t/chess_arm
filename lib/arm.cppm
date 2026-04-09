@@ -24,6 +24,7 @@ export namespace arm {
     };
 
     class Arm {
+        int port;
         std::vector<Joint> joints;
         size_t wristSize;
         unsigned int delay_ms;
@@ -42,13 +43,14 @@ export namespace arm {
         Path createPath();
 
         public:
-            Arm(const std::vector<Joint>& joints, size_t wristSize, const Orientation &base = ORIGIN, unsigned int delay_ms = 5,
-                float granularity = 0.001);
+            Arm(const char* device, const std::vector<Joint>& joints, size_t wristSize, const Orientation &base = ORIGIN,
+                unsigned int delay_ms = 5, float granularity = 0.001);
+            ~Arm();
 
             std::atomic_bool moving {};
 
             void addCheckpoint(const Checkpoint& checkpoint);
-            Checkpoint Arm::getLatestCheckpoint();
+            Checkpoint getLatestCheckpoint();
             [[noreturn]] void follow();
     };
 }

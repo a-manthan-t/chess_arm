@@ -3,10 +3,14 @@ module;
 #include <chrono>
 #include <cmath>
 #include <condition_variable>
+#include <fcntl.h>
 #include <limits>
 #include <mutex>
 #include <numbers>
+#include <print>
 #include <ranges>
+#include <termios.h>
+#include <unistd.h>
 #include <vector>
 
 #ifdef TESTING
@@ -23,13 +27,41 @@ namespace arm {
     using namespace path;
     using namespace quaternion;
 
-    Arm::Arm(const std::vector<Joint>& joints, size_t wristSize, const Orientation& base, unsigned int delay_ms, float granularity)
-        : joints(joints), wristSize(wristSize), delay_ms(delay_ms), granularity(granularity), base(base) {
+    // Open connection to the microcontroller over USB and initialise.
+    Arm::Arm(const char* device, const std::vector<Joint>& joints, size_t wristSize, const Orientation& base,
+        unsigned int delay_ms, float granularity)
+        : port(open(device, O_RDWR)), joints(joints), wristSize(wristSize), delay_ms(delay_ms), granularity(granularity), base(base) {
         checkpoints.emplace_front(locateEndEffector(), 0);
+
+        if (port < 0) {
+            std::println(stderr, "Could not open device.");
+            return;
+        }
+
+        termios config {};
+
+        if (tcgetattr(port, &config) != 0) { // Copy over existing config.
+            std::println(stderr, "Could not open device.");
+            port = -1;
+            return;
+        }
+
+        cfsetispeed(&config, B115200);
+        cfsetospeed(&config, B115200);     // Set baud rate to 115200 (what the microcontroller will be set to).
+        tcsetattr(port, TCSANOW, &config); // Apply changes now.
+    }
+
+    // Close USB connection once done.
+    Arm::~Arm() {
+        if (port >= 0) {
+            close(port);
+        }
     }
 
     // Retrieve the angle of every joint and dispatch to the arm's microcontroller.
     void Arm::dispatchAngles() const {
+        if (port < 0) return;
+
         std::vector<float> result;
         result.reserve(joints.size());
 
@@ -37,7 +69,7 @@ namespace arm {
             result.push_back(joint.angle);
         }
 
-        // TODO dispatch angles
+        write(port, result.data(), sizeof(float) * result.size());
     }
 
     /* Forward kinematics. */
