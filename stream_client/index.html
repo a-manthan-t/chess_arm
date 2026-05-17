@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Chess Arm Stream</title>
+    </head>
+    <body>
+        <h3 id="message">No messages yet.</h3>
+        <button id="notify" hidden>Promotion complete.</button>
+        <br />
+        <img
+            id="view"
+            src=""
+            alt="The stream has not yet started."
+            style="max-width: 100%; margin-top: 0.25em"
+        />
+    </body>
+
+    <script>
+        const ws = new WebSocket(
+            `ws://${prompt("Enter 'hostname' for the websocket server to connect to.")}:8080/`,
+        );
+        const button = document.getElementById("notify");
+        const message = document.getElementById("message");
+
+        ws.onmessage = (msg) => {
+            if (msg.data instanceof Blob) {
+                message.innerHTML = "The arm has sent its perspective.";
+                document.getElementById("view").src = URL.createObjectURL(
+                    msg.data,
+                );
+            } else {
+                switch (msg.data) {
+                    case "promote":
+                        message.innerHTML =
+                            "Please promote the pawn to a queen.";
+                        button.removeAttribute("hidden");
+                        break;
+                    case "invalid":
+                        message.innerHTML =
+                            "An invalid change to the board has been detected.";
+                        break;
+                    case "over":
+                        message.innerHTML =
+                            "The game is over. Please reset the pieces.";
+                        break;
+                    case "camera":
+                        message.innerHTML =
+                            "The board is not in its starting position or cannot be seen properly.";
+                        break;
+                }
+            }
+        };
+
+        button.addEventListener("click", () => {
+            ws.send("done");
+            button.setAttribute("hidden", true);
+        });
+    </script>
+</html>
