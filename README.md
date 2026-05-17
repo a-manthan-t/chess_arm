@@ -1,57 +1,5 @@
 # Chess Arm
 
-(This is still a work in progress!)
+This is an old (and incomplete) version of the robot. Originally a multithreaded system in C++, various reasons including major architectural simplifications lead to a rewrite. Since I also wanted to learn Rust, that become the language of choice in v2.
 
-### Running the Streaming Server
-
-// Info here
-
-### Build Instructions on the Raspberry Pi
-
-```shell
-# Requires cmake >= 4.1, tested on the Raspberry Pi Zero 2W
-# running the Raspberry Pi OS Lite.
-
-sudo apt install gstreamer1.0-libcamera gstreamer1.0-plugins-base \
-  libopencv-dev libstdc++-15-dev clang-19 clang-tools-19 \
-  --no-install-recommends
-
-git clone https://github.com/a-manthan-t/chess_arm.git && cd chess_arm
-mkdir build && cd build
-
-# Add the flag -DTESTING=1 for a test build instead of production, and
-# -DPC_BUILD=1 if not building on a Raspberry Pi to autodetect the camera.
-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++-19 \
-  -DCMAKE_CXX_COMPILER_CLANG_SCAN_DEPS=clang-scan-deps-19 ..
-ninja
-```
-
-### Setting Up `config.txt`
-
-// Info here
-
-### Third-Party Libraries
-
-##### C++
-
-- [OpenCV](https://opencv.org)
-- [Doctest](https://github.com/doctest/doctest)
-- [easywsclient](https://github.com/dhbaird/easywsclient)
-- [chess-library](https://github.com/Disservin/chess-library) (converted to a `.cppm` module)
-
-##### JavaScript
-
-- [express](https://www.npmjs.com/package/express)
-- [uuid](https://www.npmjs.com/package/uuid)
-- [ws](https://www.npmjs.com/package/ws)
-
-TODO:
-- Notifications to server
-- Generate target rotations
-- Toggle grab
-
-
-- Webserver fix (remove emergency stops, etc.)
-- Tests and any remaining documentation (including for webserver)
-- Ensure unit consistency and prepare config file
-- Robot side code
+Overall, v2 has much more elegant, maintainable, and robust code than this older version.
