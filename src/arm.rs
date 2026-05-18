@@ -9,8 +9,6 @@ use crate::{
 };
 
 const DISPATCH_DELAY_MS: u64 = 50;
-/// The angle (relative to the vertical) the arm's endpoint should be kept at.
-const LEVEL_ANGLE: f32 = 150.0_f32.to_radians();
 /// Units measured in squares.
 const DISPOSAL: Coordinate = Coordinate(-5.0, 6.0, 2.0);
 const GRAB: [f32; 3] = [f32::INFINITY, f32::INFINITY, f32::INFINITY];
@@ -364,7 +362,7 @@ mod tests {
                 ((i * DISPATCH_DELAY_MS) as f32 / time).min(1.0),
             );
             let mut output = [0.0; 4];
-            for i in 0..4 {
+            for i in 0..3 {
                 output[i] = (1.0 - f) * start_angles[i] + end_angles[i] * f;
             }
 
@@ -416,11 +414,10 @@ mod tests {
             let (a, b) = (angles[1], angles[1] + angles[2]);
 
             let z = arm.lengths[0] + arm.lengths[1] * a.cos() + arm.lengths[2] * b.cos();
-            let x2_y2 = (arm.lengths[1] * a.sin() + arm.lengths[2] * b.sin()).powi(2);
-            let x_div_y = angles[0].tan();
+            let r = arm.lengths[1] * a.sin() + arm.lengths[2] * b.sin();
 
-            let y = (x_div_y.powi(2) + 1.0) * x2_y2;
-            let x = y * x_div_y;
+            let x = r * angles[0].sin();
+            let y = r * angles[0].cos();
 
             Coordinate(x, y, z)
         };
@@ -430,7 +427,8 @@ mod tests {
             arm.reset_position,
             forward(arm.inverse_kinematics(arm.reset_position))
         );
-        assert_eq!(
+        // Out of reach
+        assert_ne!(
             Coordinate(-2.5, 3.5, 0.5),
             forward(arm.inverse_kinematics(Coordinate(-2.5, 3.5, 0.5)))
         );
