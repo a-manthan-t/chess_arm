@@ -147,9 +147,9 @@ impl Camera {
                 self.squares[i * 8 + (7 - j)] = Rect2i::from_points(tl + diag, br - diag);
             }
         }
-
+        dbg!(self.squares);
         // Ensure the pieces are in their starting position.
-        let processed = self.process_frame()?;
+        let processed = dbg!(self.process_frame()?);
         let flipped = (processed.0.reverse_colors(), processed.1.reverse_colors());
         let expected = get_bitboards(Board::default());
 
@@ -217,6 +217,7 @@ mod tests {
 
     #[test]
     fn configure_test() {
+        println!("{}", opencv::core::CV_VERSION);
         let mut camera = Camera::open("test_res/move%d.jpg").unwrap();
         let result = camera.configure();
         imwrite_def("test_out/configure_normal.jpg", &camera.last_frame).unwrap();
