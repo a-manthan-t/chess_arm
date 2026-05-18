@@ -72,13 +72,13 @@ impl Engine {
         self.input.write_all(self.move_history.as_bytes())?;
         self.input.write_all(MOVE_GEN_PROMPT.as_bytes())?;
 
+        #[allow(clippy::lines_filter_map_ok)]
         let mut best_move = ChessMove::from_str(
             self.output
                 .by_ref()
                 .lines()
                 .flatten()
-                .filter(|line| line.starts_with("bestmove"))
-                .next()
+                .find(|line| line.starts_with("bestmove"))
                 .unwrap()
                 .split(' ')
                 .nth(1)

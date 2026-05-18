@@ -108,7 +108,8 @@ mod tests {
             0.0, 0.0019, 0.0144, 0.0459, 0.1024, 0.1875, 0.3024, 0.4459, 0.6144, 0.8019, 1.0,
         ];
 
-        for i in 0..=10 {
+        #[allow(clippy::needless_range_loop)]
+        for i in 0..fractions.len() {
             assert!((fractions[i] - fraction_along(from, to, i as f32 / 10.0)).abs() < 10e-4);
         }
     }

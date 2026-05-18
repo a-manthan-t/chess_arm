@@ -1,5 +1,7 @@
 # Chess Arm
 
+![Chess Arm CI](https://github.com/a-manthan-t/chess_arm/actions/workflows/chess_arm_ci.yml/badge.svg)
+
 This is a 3 DOF robotic arm that can play chess. It makes use of classical computer vision techniques to detect a chessboard and changes in its state, streaming of processed video over Websockets, inter-process communication with a chess engine for move generation, and coordination with the Arduino-controlled robot over a serial interface using a geometric solution for inverse kinematics and linear interpolation of joint angles using a cubic speed profile for a smooth trajectory.
 
 The following diagram depicts the decision process of the control software run on the Raspberry Pi.
@@ -23,7 +25,7 @@ cargo install llvm-cov
 cargo llvm-cov --html --open 2> /dev/null
 ```
 
-### Contents
+## Contents
 
 1. [A Preview](#a-preview)
 2. [Build and Usage Instructions](#build-and-usage-instructions)
@@ -32,7 +34,7 @@ cargo llvm-cov --html --open 2> /dev/null
 5. [Inverse Kinematics Formula Derivation](#inverse-kinematics-formula-derivation)
 6. [Speed Profile Related Formulae Derivations](#speed-profile-related-formulae-derivations)
 
-### A Preview
+## A Preview
 
 The images below show the board as seen by the robot, with detected white and black pieces boxed by squares of their colour.
 
@@ -47,14 +49,14 @@ The following short video shows the robot playing a real game:
 
 // todo
 
-### Build and Usage Instructions
+## Build and Usage Instructions
 
 This program has been tested on the Raspberry Pi Zero 2W with a supported camera running Raspberry Pi OS Lite and Rust v1.95.0.
 
 First a chess engine (for move generation), GStreamer (for using the camera) and OpenCV (a computer vision library) need to be installed:
 ```bash
 sudo apt install stockfish gstreamer1.0-libcamera gstreamer1.0-plugins-base \
-  libopencv-dev --no-install-recommends
+  libopencv-dev clang libclang-dev --no-install-recommends
 ```
 
 To build the binary:
@@ -81,13 +83,13 @@ For proper camera, ensure the board is centred in the camera and takes up the wh
 
 The program in the `arduino` directory is a sample for the hardware used in the demonstration. A copy of this robot needs to have an arm with 4 servos (3 for the arm motions rotating as specified above and 1 for the gripper), read 12 bytes at a time from serial input and convert them into 3 floats (angles), and use those angles to set the first three motors. If the angles are all infinity/negative infinity the gripper should close/open up respectively. 
 
-### Watching the Robot's Perspective
+## Watching the Robot's Perspective
 
 The `stream_client` directory contains a HTML file that allows the user to connect to and monitor the robot over websockets.
 
 When opened in the browser, enter the Raspberry Pi's IP address/hostname on the local network.
 
-### An Explanation of the Computer Vision
+## An Explanation of the Computer Vision
 
 Using footage captured from the Raspberry Pi's camera (positioned top down above the board and aligned with the board), the robot needs to understand which pieces are on which square to make a decision. Since each chess move in a given position uniquely changes the layout of the pieces, we can simplify the problem (after enforcing the auto-queen rule - the queen is the desired promotion in most situations anyways) by only needing to identify the colour of the piece in each square (instead of needing to identify the type as well) and compare with an internal representation of the board state to deduce the move played by the user.
 
@@ -105,7 +107,7 @@ Each rectangle is used to mask the square from the frame, and the mean and stand
 
 The possible moves from the internal representation of the board state are then enumerated and the camera generated bitboards are compared to determine if the new state provides a valid continuation of the game.
 
-### Inverse Kinematics Formula Derivation
+## Inverse Kinematics Formula Derivation
 
 The final angle each servo motor of the arm needs to be set to must be calculated from the destination coordinates of the end effector.
 
@@ -154,7 +156,7 @@ Subtracting this from $\alpha + \delta$ above gives $\alpha$.
 
 A slight rearrangement of these formulae is used in the final code.
 
-### Speed Profile Related Formulae Derivations
+## Speed Profile Related Formulae Derivations
 
 The control software updates the robot's positions at regular intervals, but for a smooth travel the arm should accelerate and decelerate on its path between checkpoints to prevent sudden movements at the start and end of the journey that could damage motors and knock over pieces.
 
