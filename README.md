@@ -53,10 +53,10 @@ The following short video shows the robot playing a real game:
 
 This program has been tested on the Raspberry Pi Zero 2W with a supported camera running Raspberry Pi OS Lite and Rust v1.95.0.
 
-First a chess engine (for move generation), GStreamer (for using the camera) and OpenCV (a computer vision library) need to be installed:
+First a chess engine (for move generation), GStreamer (for using the camera) and OpenCV (a computer vision library) need to be installed alongside some build tools:
 ```bash
 sudo apt install stockfish gstreamer1.0-libcamera gstreamer1.0-plugins-base \
-  libopencv-dev clang libclang-dev --no-install-recommends
+  libopencv-dev clang libclang-dev libudev-dev pkg-config --no-install-recommends
 ```
 
 To build the binary:
