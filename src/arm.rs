@@ -12,14 +12,9 @@ const DISPATCH_DELAY_MS: u64 = 50;
 /// The angle (relative to the vertical) the arm's endpoint should be kept at.
 const LEVEL_ANGLE: f32 = 150.0_f32.to_radians();
 /// Units measured in squares.
-const DISPOSAL: Coordinate = Coordinate(-5.0, 5.0, 2.0);
-const GRAB: [f32; 4] = [f32::INFINITY, f32::INFINITY, f32::INFINITY, f32::INFINITY];
-const RELEASE: [f32; 4] = [
-    f32::NEG_INFINITY,
-    f32::NEG_INFINITY,
-    f32::NEG_INFINITY,
-    f32::NEG_INFINITY,
-];
+const DISPOSAL: Coordinate = Coordinate(-5.0, 6.0, 2.0);
+const GRAB: [f32; 3] = [f32::INFINITY, f32::INFINITY, f32::INFINITY];
+const RELEASE: [f32; 3] = [f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY];
 
 /// Potential actions the robot could take.
 #[derive(Debug, PartialEq)]
@@ -38,12 +33,12 @@ pub enum Location {
     Reset,
 }
 
-/// A model of a 4 DOF robot arm. The first joint rotates
+/// A model of a 3 DOF robot arm. The first joint rotates
 /// about the Z axis and the rest rotate about the X axis.
 #[derive(Debug)]
 pub struct Arm {
     device: Box<dyn SerialPort>,
-    lengths: [f32; 4],
+    lengths: [f32; 3],
     speed: f32,
     perspective: Color,
     square_width: f32,
@@ -56,7 +51,7 @@ impl Arm {
     /// rate of `115_200` is good for most cases (`0` when testing on a Mac with a pty!).
     pub fn new(
         device: &str,
-        lengths: [f32; 4],
+        lengths: [f32; 3],
         speed: f32,
         perspective: Color,
         square_width: f32,
@@ -79,7 +74,7 @@ impl Arm {
     }
 
     /// Convert the angles to bytes and send to the physical robot.
-    fn dispatch(&mut self, angles: [f32; 4]) {
+    fn dispatch(&mut self, angles: [f32; 3]) {
         self.device
             // The Arduino expects little endian format.
             .write_all(angles.map(|x| x.to_le_bytes()).as_flattened())
@@ -96,19 +91,24 @@ impl Arm {
                 Action::Release => self.dispatch(RELEASE),
                 Action::Move(location, speed) => {
                     let target = self.make_checkpoint(location, speed);
+                    let current_angles = self.inverse_kinematics(self.current_checkpoint.position);
+                    let target_angles = self.inverse_kinematics(target.position);
+
+                    let mut time_f = 0.0;
                     let time_increment =
                         DISPATCH_DELAY_MS as f32 / path_time(self.current_checkpoint, target);
 
-                    let mut time_f = 0.0;
                     while time_f < 1.0 {
                         time_f += time_increment;
+                        let f = fraction_along(self.current_checkpoint.speed, target.speed, time_f)
+                            .min(1.0);
 
-                        self.dispatch(self.inverse_kinematics(fraction_along(
-                            self.current_checkpoint,
-                            target,
-                            time_f.min(1.0),
-                        )));
+                        let mut output = [0.0; 3];
+                        for i in 0..3 {
+                            output[i] = (1.0 - f) * current_angles[i] + target_angles[i] * f;
+                        }
 
+                        self.dispatch(output);
                         sleep(Duration::from_millis(DISPATCH_DELAY_MS));
                     }
 
@@ -175,22 +175,20 @@ impl Arm {
     /// Converts from coordinates that the robot's hand needs to reach to angles
     /// its servos should be set to in degrees using a geometric solution
     /// (derivation in the README).
-    fn inverse_kinematics(&self, to: Coordinate) -> [f32; 4] {
-        let r = (to.0.powi(2) + to.1.powi(2)).sqrt() - self.lengths[3] * LEVEL_ANGLE.sin();
-        let z = to.2 - self.lengths[0] - self.lengths[3] * LEVEL_ANGLE.cos();
+    fn inverse_kinematics(&self, to: Coordinate) -> [f32; 3] {
+        let r = (to.0.powi(2) + to.1.powi(2)).sqrt();
+        let z = to.2 - self.lengths[0];
 
         let servo_1 = to.0.atan2(to.1);
-        let servo_2 =
-            -((r.powi(2) + z.powi(2) - self.lengths[1].powi(2) - self.lengths[2].powi(2))
-                / (2.0 * self.lengths[1] * self.lengths[2]))
-                .clamp(-1.0, 1.0)
-                .acos();
-        let servo_3 = r.atan2(z)
-            - (self.lengths[2] * servo_2.sin())
-                .atan2(self.lengths[1] + self.lengths[2] * servo_2.cos());
-        let servo_4 = LEVEL_ANGLE - servo_2 - servo_3;
+        let servo_3 = ((r.powi(2) + z.powi(2) - self.lengths[1].powi(2) - self.lengths[2].powi(2))
+            / (2.0 * self.lengths[1] * self.lengths[2]))
+            .clamp(-1.0, 1.0)
+            .acos();
+        let servo_2 = r.atan2(z)
+            - (self.lengths[2] * servo_3.sin())
+                .atan2(self.lengths[1] + self.lengths[2] * servo_3.cos());
 
-        [servo_1, servo_2, servo_3, servo_4].map(f32::to_degrees)
+        [servo_1, servo_2, servo_3].map(f32::to_degrees)
     }
 
     /// Convert a given location and a speed value into a checkpoint to move the robot to.
@@ -199,11 +197,11 @@ impl Arm {
             let (x, y) = match self.perspective {
                 Color::White => (
                     (square.get_file().to_index() as i64 - File::E.to_index() as i64) as f32,
-                    (square.get_rank().to_index() + 1) as f32,
+                    (square.get_rank().to_index() + 2) as f32,
                 ),
                 Color::Black => (
                     (File::D.to_index() as i64 - square.get_file().to_index() as i64) as f32,
-                    (Rank::Eighth.to_index() as i64 - square.get_rank().to_index() as i64 + 1)
+                    (Rank::Eighth.to_index() as i64 - square.get_rank().to_index() as i64 + 2)
                         as f32,
                 ),
             };
@@ -242,21 +240,13 @@ mod tests {
             .to_string_lossy()
             .to_string();
 
-        let arm = Arm::new(
-            name.as_str(),
-            [3.0, 4.5, 4.8, 0.3],
-            2.5,
-            Color::White,
-            0.5,
-            0,
-        )
-        .unwrap();
+        let arm = Arm::new(name.as_str(), [6.5, 6.5, 14.0], 2.5, Color::White, 3.3, 0).unwrap();
 
         (arm, File::from(result.master), File::from(result.slave))
     }
 
     fn read_last_dispatch(master: &mut File) -> Vec<f32> {
-        let mut received_bytes: [u8; 16] = [0; 16];
+        let mut received_bytes: [u8; 12] = [0; 12];
         master.read_exact(&mut received_bytes).unwrap();
 
         received_bytes
@@ -337,7 +327,7 @@ mod tests {
     fn new_test() {
         make_virtual_robot();
 
-        Arm::new("/", [3.0, 1.2, 4.8, 1.3], 2.5, Color::White, 0.5, 115_200)
+        Arm::new("/", [3.0, 1.2, 4.8], 2.5, Color::White, 0.5, 115_200)
             .expect_err("This device should not exist.");
     }
 
@@ -345,7 +335,7 @@ mod tests {
     fn dispatch_angles_test() {
         let (mut arm, mut master, _) = make_virtual_robot();
 
-        let angles = [1.24, -4.3, 1.22, 0.1];
+        let angles = [1.24, -4.3, 1.22];
         arm.dispatch(angles);
 
         assert_eq!(angles.to_vec(), read_last_dispatch(&mut master))
@@ -356,25 +346,33 @@ mod tests {
         let (mut arm, mut master, _) = make_virtual_robot();
 
         let start = arm.current_checkpoint;
+        let start_angles = arm.inverse_kinematics(start.position);
         arm.execute(vec![
             Action::Release,
-            Action::Move(Location::HoverLevel(Square::F3), 35.0),
+            Action::Move(Location::HoverLevel(Square::F3), 75.0),
             Action::Grab,
         ]);
         let end = arm.current_checkpoint;
+        let end_angles = arm.inverse_kinematics(end.position);
         let time = path_time(start, end);
 
         assert_eq!(RELEASE.to_vec(), read_last_dispatch(&mut master));
         for i in 1..15 {
+            let f = fraction_along(
+                start.speed,
+                end.speed,
+                ((i * DISPATCH_DELAY_MS) as f32 / time).min(1.0),
+            );
+            let mut output = [0.0; 4];
+            for i in 0..4 {
+                output[i] = (1.0 - f) * start_angles[i] + end_angles[i] * f;
+            }
+
             assert!(
-                arm.inverse_kinematics(fraction_along(
-                    start,
-                    end,
-                    ((i * DISPATCH_DELAY_MS) as f32 / time).min(1.0)
-                ))
-                .iter()
-                .zip(read_last_dispatch(&mut master))
-                .all(|(x, y)| x - y < 0.00025)
+                output
+                    .iter()
+                    .zip(read_last_dispatch(&mut master))
+                    .all(|(x, y)| x - y < 10e-4)
             );
         }
         assert_eq!(GRAB.to_vec(), read_last_dispatch(&mut master));
@@ -413,22 +411,12 @@ mod tests {
     fn inverse_kinematics_test() {
         let (arm, _, _) = make_virtual_robot();
         // forward(inverse_kinematics(coordinate)) == coordinate, so we can use this for testing.
-        let forward = |angles: [f32; 4]| {
+        let forward = |angles: [f32; 3]| {
             let angles = angles.map(f32::to_radians);
-            let (a, b, c) = (
-                angles[1],
-                angles[1] + angles[2],
-                angles[1] + angles[2] + angles[3],
-            );
+            let (a, b) = (angles[1], angles[1] + angles[2]);
 
-            let z = arm.lengths[0]
-                + arm.lengths[1] * a.cos()
-                + arm.lengths[2] * b.cos()
-                + arm.lengths[3] * c.cos();
-
-            let x2_y2 =
-                (arm.lengths[1] * a.sin() + arm.lengths[2] * b.sin() + arm.lengths[3] * c.sin())
-                    .powi(2);
+            let z = arm.lengths[0] + arm.lengths[1] * a.cos() + arm.lengths[2] * b.cos();
+            let x2_y2 = (arm.lengths[1] * a.sin() + arm.lengths[2] * b.sin()).powi(2);
             let x_div_y = angles[0].tan();
 
             let y = (x_div_y.powi(2) + 1.0) * x2_y2;
@@ -437,12 +425,12 @@ mod tests {
             Coordinate(x, y, z)
         };
 
-        assert_ne!(DISPOSAL, forward(arm.inverse_kinematics(DISPOSAL)));
-        assert_ne!(
+        assert_eq!(DISPOSAL, forward(arm.inverse_kinematics(DISPOSAL)));
+        assert_eq!(
             arm.reset_position,
             forward(arm.inverse_kinematics(arm.reset_position))
         );
-        assert_ne!(
+        assert_eq!(
             Coordinate(-2.5, 3.5, 0.5),
             forward(arm.inverse_kinematics(Coordinate(-2.5, 3.5, 0.5)))
         );
@@ -461,7 +449,7 @@ mod tests {
         );
         assert_eq!(
             Checkpoint {
-                position: Coordinate(-2.5, 3.5, 0.5).mul(arm.square_width),
+                position: Coordinate(-2.5, 4.5, 0.5).mul(arm.square_width),
                 speed: 5.3,
             },
             arm.make_checkpoint(Location::GrabLevel(Square::B3), 5.3)
@@ -478,7 +466,7 @@ mod tests {
         );
         assert_eq!(
             Checkpoint {
-                position: Coordinate(-1.5, 1.5, 2.0).mul(arm.square_width),
+                position: Coordinate(-1.5, 2.5, 2.0).mul(arm.square_width),
                 speed: 0.7,
             },
             arm.make_checkpoint(Location::HoverLevel(Square::F8), 0.7)

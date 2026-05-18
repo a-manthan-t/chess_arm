@@ -19,24 +19,16 @@ impl PartialEq for Coordinate {
 }
 
 impl Coordinate {
-    /// Add two coordinates together.
-    pub fn add(self, other: Self) -> Self {
-        Coordinate(self.0 + other.0, self.1 + other.1, self.2 + other.2)
-    }
-
     /// Scale a coordinate by a given factor.
     pub fn mul(self, scale: f32) -> Self {
         Coordinate(self.0 * scale, self.1 * scale, self.2 * scale)
     }
 }
 
-/// Calculates the expected position of the arm a fraction `time_f`
-/// along the path's duration (derivation in the README).
-pub fn fraction_along(from: Checkpoint, to: Checkpoint, time_f: f32) -> Coordinate {
-    let path_f = 2.
-        * (from.speed * time_f + (to.speed - from.speed) * (time_f.powi(3) - 0.5 * time_f.powi(4)))
-        / (from.speed + to.speed);
-    from.position.mul(1. - path_f).add(to.position.mul(path_f))
+/// Calculates the expected fraction of the servo angles between their start and end
+/// values a fraction `time_f` along the path's duration (derivation in the README).
+pub fn fraction_along(from: f32, to: f32, time_f: f32) -> f32 {
+    2. * (from * time_f + (to - from) * (time_f.powi(3) - 0.5 * time_f.powi(4))) / (from + to)
 }
 
 /// Calculates the duration of the path between the two checkpoints in milliseconds
@@ -62,28 +54,6 @@ mod tests {
         Coordinate(50.0, 8.234, 9.0),
         Coordinate(-3.1, 2.1, -4.9),
         Coordinate(-10.0, -0.55, -0.0),
-    ];
-    const FRACTIONAL_POSITIONS: [[Coordinate; 3]; 4] = [
-        [
-            Coordinate(3.204297, -3.495040, 4.626098),
-            Coordinate(4.077083, -1.337775, 3.028734),
-            Coordinate(5.166255, 1.354329, 1.035344),
-        ],
-        [
-            Coordinate(24.589063, 8.761719, 0.651563),
-            Coordinate(37.380263, 8.496079, 4.853947),
-            Coordinate(43.253216, 8.374113, 6.783431),
-        ],
-        [
-            Coordinate(46.487599, 7.828255, 8.080558),
-            Coordinate(37.151893, 6.749814, 5.636748),
-            Coordinate(26.508804, 5.520347, 2.850704),
-        ],
-        [
-            Coordinate(-5.505014, 1.176335, -3.192092),
-            Coordinate(-7.504406, 0.408453, -1.772234),
-            Coordinate(-8.529508, 0.014754, -1.044262),
-        ],
     ];
 
     // Turns pairs of coordinates (positions) and abs(scales) (speeds) into checkpoints.
@@ -111,15 +81,6 @@ mod tests {
     }
 
     #[test]
-    fn add_test() {
-        let sum = COORDINATES
-            .iter()
-            .fold(Coordinate(0.0, 0.0, 0.0), |acc, x| acc.add(*x));
-
-        assert_eq!(sum, Coordinate(48.2, 14.884, 4.4));
-    }
-
-    #[test]
     fn mul_test() {
         let mul: Vec<Coordinate> = COORDINATES
             .iter()
@@ -141,20 +102,15 @@ mod tests {
 
     #[test]
     fn fraction_along_test() {
-        let test_window = |window: (&[Checkpoint], [Coordinate; 3])| {
-            let (seg, pts) = window;
+        let from = 0.0;
+        let to = 15.0;
+        let fractions = [
+            0.0, 0.0019, 0.0144, 0.0459, 0.1024, 0.1875, 0.3024, 0.4459, 0.6144, 0.8019, 1.0,
+        ];
 
-            assert_eq!(fraction_along(seg[0], seg[1], 0.0), seg[0].position);
-            assert_eq!(fraction_along(seg[0], seg[1], 1.0), seg[1].position);
-            assert_eq!(fraction_along(seg[0], seg[1], 0.25), pts[0]);
-            assert_eq!(fraction_along(seg[0], seg[1], 0.5), pts[1]);
-            assert_eq!(fraction_along(seg[0], seg[1], 2.0 / 3.0), pts[2]);
-        };
-
-        make_checkpoints()
-            .windows(2)
-            .zip(FRACTIONAL_POSITIONS)
-            .for_each(test_window);
+        for i in 0..=10 {
+            assert!((fractions[i] - fraction_along(from, to, i as f32 / 10.0)).abs() < 10e-4);
+        }
     }
 
     #[test]

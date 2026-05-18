@@ -51,7 +51,7 @@ mod tests {
 
     #[test]
     fn stream_test() {
-        let image = imread_def("res/move0.jpg").unwrap();
+        let image = imread_def("test_res/move0.jpg").unwrap();
         let mut jpg = Vector::new();
         imencode_def(".jpg", &image, &mut jpg).ok();
 

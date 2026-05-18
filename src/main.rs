@@ -23,7 +23,7 @@ const PIPELINE: &str = "libcamerasrc ! videoconvert ! \
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
-    assert!(args.len() == 9, "Please provide the required arguments."); // Includes program name - arg 0.
+    assert!(args.len() == 8, "Please provide the 7 required arguments."); // Includes program name - arg 0.
 
     let device = args[1].clone();
     let program = args[2].clone();
@@ -31,10 +31,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         args[3].parse::<f32>()?,
         args[4].parse::<f32>()?,
         args[5].parse::<f32>()?,
-        args[6].parse::<f32>()?,
     ];
-    let speed = args[7].parse::<f32>()?;
-    let square_width = args[8].parse::<f32>()?;
+    let speed = args[6].parse::<f32>()?;
+    let square_width = args[7].parse::<f32>()?;
 
     let mut client = start_stream();
 
